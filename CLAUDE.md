@@ -18,6 +18,8 @@ Mini-mancer is a Python project that uses `pydantic-ai-slim[mcp]` as its main de
 ```bash
 # Install dependencies
 uv sync
+# Add new dependencies to the local venv
+uv add <package>
 
 # Activate virtual environment (if needed)
 source .venv/bin/activate
@@ -26,8 +28,6 @@ source .venv/bin/activate
 ### Running the Application
 ```bash
 # Run the main application
-python main.py
-# or with uv
 uv run python main.py
 ```
 
@@ -109,13 +109,22 @@ uv run python main.py
 - Extract nested logic into separate functions
 - Prefer flat structure over deeply nested code
 
+### Error Handling
+- Avoid excessive or comprehensive error handling; let exceptions and tracebacks bubble up
+- Only catch exceptions when there’s a clear, necessary recovery path
+
+### Comments and Documentation
+- Avoid comments unless code isn’t self-explanatory
+- Provide short, concise docstrings for public-facing methods
+
 ## Project Structure
 
 The project currently has a minimal structure:
-- `main.py` - Entry point with a simple main() function
+- `main.py` - Entry point with a simple `main()` function
 - `pyproject.toml` - Project configuration and dependencies
 - `uv.lock` - Locked dependency versions
 
 ## Key Dependencies
 
 - `pydantic-ai-slim[mcp]` - The main framework dependency for AI/MCP functionality
+```

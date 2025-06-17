@@ -194,3 +194,4 @@ cython_debug/
 .cursorindexingignore
 .python-version
 uv.lock
+.aider*
