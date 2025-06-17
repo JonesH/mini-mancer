@@ -374,53 +374,66 @@ Analyze this request and decide whether to answer directly or relay to the user 
     async def _send_deployment_ready_message(self, chat_id: str, agent_dna, task_id: str):
         """Send Telegram message with deployment button when bot is ready"""
         try:
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            
-            # Create inline keyboard with deployment button
-            keyboard = [
-                [InlineKeyboardButton("🚀 Deploy Bot", callback_data=f"deploy_{task_id}")],
-                [InlineKeyboardButton("📋 Review Specs", callback_data=f"review_{task_id}")],
-                [InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{task_id}")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            # Create inline keyboard with deployment button using Telegram HTTP API format
+            inline_keyboard = {
+                "inline_keyboard": [
+                    [{"text": "🚀 Deploy Bot", "callback_data": f"deploy_{task_id}"}],
+                    [{"text": "📋 Review Specs", "callback_data": f"review_{task_id}"}],
+                    [{"text": "❌ Cancel", "callback_data": f"cancel_{task_id}"}]
+                ]
+            }
             
             # Create deployment ready message
-            message = f"""🎉 **Bot Ready for Deployment!**
+            message = f"""🎉 *Bot Ready for Deployment!*
 
-🤖 **Name:** {agent_dna.name}
-🎯 **Purpose:** {agent_dna.purpose}
-🎭 **Personality:** {', '.join([p.value for p in agent_dna.personality])}
-🛠️ **Capabilities:** {', '.join([c.value for c in agent_dna.capabilities])}
+🤖 *Name:* {agent_dna.name}
+🎯 *Purpose:* {agent_dna.purpose}
+🎭 *Personality:* {', '.join([p.value for p in agent_dna.personality])}
+🛠️ *Capabilities:* {', '.join([c.value for c in agent_dna.capabilities])}
 
-📝 **Task ID:** {task_id}
+📝 *Task ID:* {task_id}
 
 ✅ Your bot specification is complete and ready for deployment to the Telegram platform. Click the button below to proceed with deployment."""
 
             # Send message with inline buttons
             if self.telegram_bot_token:
-                import httpx
-                
                 telegram_api_url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage"
                 
                 payload = {
                     "chat_id": chat_id,
                     "text": message,
                     "parse_mode": "Markdown",
-                    "reply_markup": reply_markup.to_dict()
+                    "reply_markup": inline_keyboard
                 }
                 
                 async with httpx.AsyncClient() as client:
                     response = await client.post(telegram_api_url, json=payload)
                     
                     if response.status_code == 200:
-                        print(f"✅ Deployment ready message sent to chat {chat_id}")
+                        print(f"✅ Deployment ready message with buttons sent to chat {chat_id}")
                     else:
                         print(f"❌ Failed to send deployment message: {response.text}")
+                        # Try sending without buttons as fallback
+                        fallback_payload = {
+                            "chat_id": chat_id,
+                            "text": message + "\n\n💡 Reply with 'deploy' to proceed with deployment.",
+                            "parse_mode": "Markdown"
+                        }
+                        fallback_response = await client.post(telegram_api_url, json=fallback_payload)
+                        if fallback_response.status_code == 200:
+                            print(f"✅ Fallback message sent to chat {chat_id}")
             else:
-                print(f"📱 Would send deployment ready message to {chat_id}")
+                print(f"📱 Would send deployment ready message with buttons to {chat_id}")
                 
         except Exception as e:
             print(f"❌ Error sending deployment ready message: {e}")
+            # Try sending a simple message as final fallback
+            try:
+                if self.telegram_bot_token:
+                    simple_message = f"🎉 Bot Ready! Your bot '{agent_dna.name}' is ready for deployment. Reply with 'deploy' to proceed."
+                    await self._send_telegram_message(chat_id, simple_message)
+            except:
+                pass
 
     async def _deploy_bot_instance(self, bot_token: str, agent_dna, task_id: str, creator_user_id: str) -> dict[str, Any]:
         """Actually deploy a new bot instance using the provided token"""
