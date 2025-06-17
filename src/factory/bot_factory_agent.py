@@ -195,32 +195,38 @@ Analyze this request and decide whether to answer directly or relay to the user 
                     # Check if we're waiting for user response
                     if state.awaiting_user_response:
                         # Agent decided to relay - we'll handle the user response later
-                        return {
+                        result = {
                             "status": "waiting_for_user",
-                            "message": "Question relayed to user, waiting for response"
+                            "message": "Question relayed to user, waiting for response",
+                            "input_data": openserv_request
                         }
+                        return result
                     else:
                         # Agent provided direct response
                         # Send response back to OpenServ (this would be the actual API call)
                         await self._send_openserv_response(workspace_id, response_text, openserv_request)
                         
-                        return {
+                        result = {
                             "status": "completed",
-                            "response": response_text
+                            "response": response_text,
+                            "input_data": openserv_request
                         }
+                        return result
                         
             except Exception as e:
                 print(f"❌ Error handling OpenServ request: {e}")
                 return {
                     "status": "error",
-                    "message": f"Error processing request: {str(e)}"
+                    "message": f"Error processing request: {str(e)}",
+                    "input_data": openserv_request
                 }
         
         else:
             # Handle other OpenServ action types
             return {
                 "status": "not_implemented",
-                "message": f"Action type {action_type} not yet implemented"
+                "message": f"Action type {action_type} not yet implemented",
+                "input_data": openserv_request
             }
 
     async def _send_openserv_response(self, workspace_id: str, response: str, original_request: dict[str, Any]):
@@ -255,14 +261,22 @@ Analyze this request and decide whether to answer directly or relay to the user 
         except Exception as e:
             print(f"❌ Error sending response to OpenServ: {e}")
 
-    async def continue_openserv_conversation(self, user_id: str, user_response: str) -> str:
+    async def continue_openserv_conversation(self, user_id: str, user_response: str) -> dict[str, Any]:
         """Continue OpenServ conversation after receiving user response"""
         state = self.conversations.get(user_id)
         if not state or not state.pending_openserv_request:
-            return "❌ No pending OpenServ request found"
+            return {
+                "status": "error",
+                "message": "❌ No pending OpenServ request found",
+                "input_data": {"user_id": user_id, "user_response": user_response}
+            }
             
         if not state.awaiting_user_response:
-            return "❌ Not waiting for user response"
+            return {
+                "status": "error", 
+                "message": "❌ Not waiting for user response",
+                "input_data": {"user_id": user_id, "user_response": user_response}
+            }
             
         try:
             # Load message history
@@ -300,15 +314,37 @@ Analyze this request and decide whether to answer directly or relay to the user 
                     state.pending_openserv_request
                 )
                 
+                # Store original request for return
+                original_request = state.pending_openserv_request
+                
                 # Clear the pending request
                 state.pending_openserv_request = None
                 
-                return f"✅ Response sent to OpenServ: {response_text}"
+                return {
+                    "status": "completed",
+                    "message": f"✅ Response sent to OpenServ: {response_text}",
+                    "response": response_text,
+                    "input_data": {
+                        "user_id": user_id, 
+                        "user_response": user_response,
+                        "original_request": original_request
+                    }
+                }
                 
         except Exception as e:
             state.awaiting_user_response = False
+            original_request = state.pending_openserv_request
             state.pending_openserv_request = None
-            return f"❌ Error continuing conversation: {str(e)}"
+            return {
+                "status": "error",
+                "message": f"❌ Error continuing conversation: {str(e)}",
+                "input_data": {
+                    "user_id": user_id,
+                    "user_response": user_response, 
+                    "original_request": original_request,
+                    "error": str(e)
+                }
+            }
 
     async def _create_openserv_task(self, workspace_id: str, agent_dna, assignee_id: int = None) -> Optional[str]:
         """Create a task in OpenServ workspace for bot creation"""
@@ -1254,7 +1290,7 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
             target_platform=PlatformTarget.TELEGRAM
         )
 
-    async def handle_message(self, user_id: str, chat_id: str, message: str) -> str:
+    async def handle_message(self, user_id: str, chat_id: str, message: str) -> dict[str, Any]:
         """
         Handle a message from a user and generate appropriate response.
 
@@ -1264,7 +1300,7 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
             message: User's message text
 
         Returns:
-            Response text for the user
+            Dict containing response and input data
         """
         # Get or create conversation state
         state = self.conversations.get(user_id, ConversationState(
@@ -1294,13 +1330,30 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
             # Update conversation state
             self.conversations[user_id] = state
 
-            return response
+            return {
+                "status": "success",
+                "response": response,
+                "input_data": {
+                    "user_id": user_id,
+                    "chat_id": chat_id,
+                    "message": message
+                }
+            }
 
         except Exception as e:
             error_msg = f"Sorry, I encountered an error: {str(e)}"
-            return error_msg
+            return {
+                "status": "error",
+                "response": error_msg,
+                "input_data": {
+                    "user_id": user_id,
+                    "chat_id": chat_id,
+                    "message": message,
+                    "error": str(e)
+                }
+            }
 
-    async def handle_deployment_callback(self, callback_data: str, chat_id: str, user_id: str) -> str:
+    async def handle_deployment_callback(self, callback_data: str, chat_id: str, user_id: str) -> dict[str, Any]:
         """Handle deployment button callbacks"""
         try:
             if callback_data == "deploy_demo":
@@ -1318,22 +1371,48 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
                 
                 # Update conversation state
                 self.conversations[user_id] = user_state
-                return response
+                return {
+                    "status": "success",
+                    "response": response,
+                    "input_data": {
+                        "callback_data": callback_data,
+                        "chat_id": chat_id,
+                        "user_id": user_id
+                    }
+                }
                 
             elif callback_data == "create_custom":
-                return "🛠️ **Let's create your custom bot!**\n\n" \
-                       "What would you like to name your bot? This will be its display name when users interact with it."
+                response = "🛠️ **Let's create your custom bot!**\n\n" \
+                          "What would you like to name your bot? This will be its display name when users interact with it."
+                return {
+                    "status": "success",
+                    "response": response,
+                    "input_data": {
+                        "callback_data": callback_data,
+                        "chat_id": chat_id,
+                        "user_id": user_id
+                    }
+                }
                        
             elif callback_data == "learn_more":
-                return "ℹ️ **About Mini-Mancer Bot Factory**\n\n" \
-                       "I can help you create various types of Telegram bots:\n\n" \
-                       "🤖 **Chat Bots** - Conversational assistants\n" \
-                       "🧮 **Calculator Bots** - Math and computation helpers\n" \
-                       "🖼️ **Image Analysis Bots** - Photo processing and description\n" \
-                       "🔍 **Search Bots** - Web search capabilities\n" \
-                       "📅 **Reminder Bots** - Scheduling and notifications\n" \
-                       "📄 **File Handler Bots** - Document processing\n\n" \
-                       "Ready to create your own? Just tell me what kind of bot you'd like!"
+                response = "ℹ️ **About Mini-Mancer Bot Factory**\n\n" \
+                          "I can help you create various types of Telegram bots:\n\n" \
+                          "🤖 **Chat Bots** - Conversational assistants\n" \
+                          "🧮 **Calculator Bots** - Math and computation helpers\n" \
+                          "🖼️ **Image Analysis Bots** - Photo processing and description\n" \
+                          "🔍 **Search Bots** - Web search capabilities\n" \
+                          "📅 **Reminder Bots** - Scheduling and notifications\n" \
+                          "📄 **File Handler Bots** - Document processing\n\n" \
+                          "Ready to create your own? Just tell me what kind of bot you'd like!"
+                return {
+                    "status": "success",
+                    "response": response,
+                    "input_data": {
+                        "callback_data": callback_data,
+                        "chat_id": chat_id,
+                        "user_id": user_id
+                    }
+                }
             
             # Handle regular deployment callbacks
             action, task_id = callback_data.split("_", 1)
@@ -1342,7 +1421,17 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
                 # Find the user's conversation state to get bot token and agent DNA
                 user_state = self.conversations.get(user_id)
                 if not user_state or not user_state.bot_token:
-                    return "❌ Bot token not found. Please provide your bot token first."
+                    response = "❌ Bot token not found. Please provide your bot token first."
+                    return {
+                        "status": "error",
+                        "response": response,
+                        "input_data": {
+                            "callback_data": callback_data,
+                            "chat_id": chat_id,
+                            "user_id": user_id,
+                            "task_id": task_id
+                        }
+                    }
                 
                 # Convert requirements to AgentDNA
                 agent_dna = self._requirements_to_dna(user_state.requirements)
@@ -1366,46 +1455,107 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
                         f"Bot @{deployment_result['bot_username']} deployed successfully"
                     )
                     
-                    return f"🎉 **Bot Deployed Successfully!**\n\n" \
-                           f"🤖 **Bot Username:** @{deployment_result['bot_username']}\n" \
-                           f"🆔 **Bot ID:** {deployment_result['bot_id']}\n" \
-                           f"📝 **Instance ID:** {deployment_result['bot_instance_id']}\n\n" \
-                           f"✅ **Your bot is now LIVE!**\n" \
-                           f"🔥 **Check your messages - your bot will contact you directly!**\n" \
-                           f"🔗 Direct link: https://t.me/{deployment_result['bot_username']}\n\n" \
-                           f"📊 OpenServ task {task_id} marked as complete\n\n" \
-                           f"🎯 **Your new bot is introducing itself to you right now!**"
+                    response = f"🎉 **Bot Deployed Successfully!**\n\n" \
+                              f"🤖 **Bot Username:** @{deployment_result['bot_username']}\n" \
+                              f"🆔 **Bot ID:** {deployment_result['bot_id']}\n" \
+                              f"📝 **Instance ID:** {deployment_result['bot_instance_id']}\n\n" \
+                              f"✅ **Your bot is now LIVE!**\n" \
+                              f"🔥 **Check your messages - your bot will contact you directly!**\n" \
+                              f"🔗 Direct link: https://t.me/{deployment_result['bot_username']}\n\n" \
+                              f"📊 OpenServ task {task_id} marked as complete\n\n" \
+                              f"🎯 **Your new bot is introducing itself to you right now!**"
+                    return {
+                        "status": "success",
+                        "response": response,
+                        "deployment_result": deployment_result,
+                        "input_data": {
+                            "callback_data": callback_data,
+                            "chat_id": chat_id,
+                            "user_id": user_id,
+                            "task_id": task_id
+                        }
+                    }
                 else:
-                    return f"❌ **Deployment Failed**\n\n" \
-                           f"Error: {deployment_result['error']}\n\n" \
-                           f"Please check your bot token and try again."
+                    response = f"❌ **Deployment Failed**\n\n" \
+                              f"Error: {deployment_result['error']}\n\n" \
+                              f"Please check your bot token and try again."
+                    return {
+                        "status": "error",
+                        "response": response,
+                        "deployment_result": deployment_result,
+                        "input_data": {
+                            "callback_data": callback_data,
+                            "chat_id": chat_id,
+                            "user_id": user_id,
+                            "task_id": task_id
+                        }
+                    }
                        
             elif action == "review":
                 # Show specs review
                 user_state = self.conversations.get(user_id)
                 if user_state and user_state.requirements:
                     req = user_state.requirements
-                    return f"📋 **Bot Specifications Review**\n\n" \
-                           f"🤖 **Name:** {req.get('name', 'N/A')}\n" \
-                           f"🎯 **Purpose:** {req.get('purpose', 'N/A')}\n" \
-                           f"🎭 **Personality:** {', '.join(req.get('personality', ['N/A']))}\n" \
-                           f"🛠️ **Capabilities:** {', '.join(req.get('capabilities', ['N/A']))}\n\n" \
-                           f"📝 **Task ID:** {task_id}\n\n" \
-                           f"✅ Use the deploy button when ready to proceed!"
+                    response = f"📋 **Bot Specifications Review**\n\n" \
+                              f"🤖 **Name:** {req.get('name', 'N/A')}\n" \
+                              f"🎯 **Purpose:** {req.get('purpose', 'N/A')}\n" \
+                              f"🎭 **Personality:** {', '.join(req.get('personality', ['N/A']))}\n" \
+                              f"🛠️ **Capabilities:** {', '.join(req.get('capabilities', ['N/A']))}\n\n" \
+                              f"📝 **Task ID:** {task_id}\n\n" \
+                              f"✅ Use the deploy button when ready to proceed!"
                 else:
-                    return "❌ No specifications found for review"
+                    response = "❌ No specifications found for review"
+                return {
+                    "status": "success",
+                    "response": response,
+                    "input_data": {
+                        "callback_data": callback_data,
+                        "chat_id": chat_id,
+                        "user_id": user_id,
+                        "task_id": task_id
+                    }
+                }
                     
             elif action == "cancel":
                 # Handle cancellation
-                return f"❌ **Deployment cancelled**\n\n" \
-                       f"📝 Task {task_id} cancelled\n" \
-                       f"💬 You can start a new bot creation process anytime by sending me a message!"
+                response = f"❌ **Deployment cancelled**\n\n" \
+                          f"📝 Task {task_id} cancelled\n" \
+                          f"💬 You can start a new bot creation process anytime by sending me a message!"
+                return {
+                    "status": "success",
+                    "response": response,
+                    "input_data": {
+                        "callback_data": callback_data,
+                        "chat_id": chat_id,
+                        "user_id": user_id,
+                        "task_id": task_id
+                    }
+                }
                        
             else:
-                return "❌ Unknown action"
+                response = "❌ Unknown action"
+                return {
+                    "status": "error",
+                    "response": response,
+                    "input_data": {
+                        "callback_data": callback_data,
+                        "chat_id": chat_id,
+                        "user_id": user_id
+                    }
+                }
                 
         except Exception as e:
-            return f"❌ Error handling deployment: {str(e)}"
+            response = f"❌ Error handling deployment: {str(e)}"
+            return {
+                "status": "error",
+                "response": response,
+                "input_data": {
+                    "callback_data": callback_data,
+                    "chat_id": chat_id,
+                    "user_id": user_id,
+                    "error": str(e)
+                }
+            }
 
     async def get_conversation_summary(self, user_id: str) -> dict[str, Any]:
         """Get summary of user's conversation and progress"""
