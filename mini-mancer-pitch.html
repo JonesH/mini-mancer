@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini-Mancer Pitch</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+        }
+        
+        .slideshow-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .slide {
+            display: none;
+            padding: 60px;
+            text-align: center;
+            max-width: 1000px;
+            animation: fadeIn 0.5s;
+        }
+        
+        .slide.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 30px;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        h2 {
+            font-size: 3rem;
+            margin-bottom: 40px;
+            font-weight: 600;
+            color: #FFD700;
+        }
+        
+        h3 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            color: #FFD700;
+        }
+        
+        p, li {
+            font-size: 1.5rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        ul {
+            text-align: left;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .highlight {
+            background: rgba(255, 215, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+        
+        .code-example {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 1.2rem;
+            text-align: left;
+            margin: 20px 0;
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+        }
+        
+        .slide-number {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+        }
+        
+        .subtitle {
+            font-size: 1.8rem;
+            color: #E0E0E0;
+            margin-bottom: 40px;
+        }
+        
+        .demo-flow {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 30px 0;
+            font-size: 1.3rem;
+        }
+        
+        .arrow {
+            font-size: 2rem;
+            color: #FFD700;
+        }
+    </style>
+</head>
+<body>
+    <div class="slideshow-container">
+        
+        <!-- Slide 1: Title -->
+        <div class="slide active">
+            <h1>Mini-Mancer</h1>
+            <p class="subtitle">AI Agent Factory for Telegram Mini App Creation</p>
+            <p style="font-size: 2rem; margin-top: 60px;">Democratizing bot creation through conversation</p>
+            <p style="font-size: 1.3rem; margin-top: 40px;">Transform 900M Telegram users into bot creators</p>
+        </div>
+        
+        <!-- Slide 2: Problem -->
+        <div class="slide">
+            <h2>The Telegram Bot Bottleneck</h2>
+            <ul>
+                <li><span class="highlight">900M Telegram users</span> + growing Mini App ecosystem</li>
+                <li>Bot creation requires <span class="highlight">coding expertise</span></li>
+                <li>Current friction: Developers needed → <span class="highlight">weeks of development</span> → high costs</li>
+                <li>Massive opportunity gap: <span class="highlight">Simple ideas blocked by technical barriers</span></li>
+            </ul>
+            <p style="font-size: 2rem; margin-top: 40px; color: #FFD700;">What if anyone could create bots through conversation?</p>
+        </div>
+        
+        <!-- Slide 3: Solution -->
+        <div class="slide">
+            <h2>Conversational Agent Factory</h2>
+            <div class="demo-flow">
+                <div>"Weather bot for hiking"</div>
+                <div class="arrow">→</div>
+                <div>AI gathers requirements</div>
+                <div class="arrow">→</div>
+                <div>@WeatherHikeBot ready</div>
+            </div>
+            
+            <h3>Technical Innovation</h3>
+            <ul>
+                <li><span class="highlight">Pydantic-AI + MCP</span>: Type-safe agent generation</li>
+                <li><span class="highlight">Local spawning</span>: No platform dependencies</li>
+                <li><span class="highlight">Template-driven</span>: Dynamic code from conversation</li>
+                <li><span class="highlight">Zero-code deployment</span>: Working bot in &lt;5 minutes</li>
+            </ul>
+        </div>
+        
+        <!-- Slide 4: Architecture -->
+        <div class="slide">
+            <h2>Tool Orchestration Excellence</h2>
+            <ul>
+                <li><span class="highlight">Pydantic-AI</span>: Native MCP integration, type safety</li>
+                <li><span class="highlight">Process Management</span>: Port allocation, health monitoring</li>
+                <li><span class="highlight">Telegram MCP Server</span>: Reliable Bot API operations</li>
+                <li><span class="highlight">SQLite Registry</span>: Agent lifecycle tracking</li>
+            </ul>
+            
+            <div class="code-example">
+User: "Create a poll bot for my team"<br>
+AI: "Anonymous voting? Results visibility?"<br>
+User: "Daily standup polls, 24hr results"<br>
+AI: "Creating StandupPoll Bot..." → @StandupPollBot ready
+            </div>
+            
+            <p><span class="highlight">Key Differentiator</span>: Conversation as universal protocol between human intention and digital agent spawning</p>
+        </div>
+        
+        <!-- Slide 5: Market -->
+        <div class="slide">
+            <h2>Market Validation</h2>
+            <ul>
+                <li><span class="highlight">Telegram</span>: 900M users, Mini Apps launched 2023</li>
+                <li><span class="highlight">No-code market</span>: $13.2B, 41% annual growth</li>
+                <li><span class="highlight">Bot ecosystem gap</span>: High friction between idea and implementation</li>
+            </ul>
+            
+            <h3>Competitive Advantage</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 30px;">
+                <div>
+                    <p><span class="highlight">Speed</span>: Minutes vs weeks</p>
+                    <p><span class="highlight">Accessibility</span>: Conversation vs coding</p>
+                </div>
+                <div>
+                    <p><span class="highlight">Cost</span>: Marginal vs developer hours</p>
+                    <p><span class="highlight">Flexibility</span>: Unlimited customization</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Slide 6: Call to Action -->
+        <div class="slide">
+            <h2>Implementation Roadmap</h2>
+            <ul>
+                <li><span class="highlight">Phase 1</span>: Core infrastructure (4 weeks)</li>
+                <li><span class="highlight">Phase 2</span>: Template system + Factory Agent (3 weeks)</li>
+                <li><span class="highlight">Phase 3</span>: MCP integration + Web interface (3 weeks)</li>
+            </ul>
+            
+            <p style="font-size: 2rem; margin-top: 40px;"><span class="highlight">MVP in 10 weeks</span></p>
+            
+            <h3 style="margin-top: 40px;">Resource Requirements</h3>
+            <p>2 developers + 1 AI/MCP specialist</p>
+            <p>Self-hosted infrastructure, minimal cloud costs</p>
+            
+            <p style="font-size: 2rem; margin-top: 60px; color: #FFD700;">Transform 900M users into bot creators through conversation</p>
+        </div>
+        
+    </div>
+    
+    <div class="slide-number">
+        <span id="current-slide">1</span> / <span id="total-slides">6</span>
+    </div>
+    
+    <div class="navigation">
+        Use ← → arrows or Space/Backspace to navigate
+    </div>
+    
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        document.getElementById('total-slides').textContent = totalSlides;
+        
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('current-slide').textContent = currentSlide + 1;
+        }
+        
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+        
+        function prevSlide() {
+            showSlide(currentSlide - 1);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                case 'Enter':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                case 'Backspace':
+                    e.preventDefault();
+                    prevSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    showSlide(0);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    showSlide(totalSlides - 1);
+                    break;
+            }
+        });
+        
+        // Click navigation
+        document.addEventListener('click', function(e) {
+            if (e.clientX > window.innerWidth / 2) {
+                nextSlide();
+            } else {
+                prevSlide();
+            }
+        });
+        
+        // Prevent text selection during clicks
+        document.addEventListener('selectstart', function(e) {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>
