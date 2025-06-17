@@ -261,6 +261,43 @@ Analyze this request and decide whether to answer directly or relay to the user 
         except Exception as e:
             print(f"❌ Error sending response to OpenServ: {e}")
 
+    async def _send_complete_bot_specs_to_openserv(self, state: ConversationState):
+        """Send complete bot specifications back to OpenServ platform"""
+        if not state.pending_openserv_request:
+            return
+            
+        try:
+            # Convert requirements to AgentDNA
+            agent_dna = self._requirements_to_dna(state.requirements)
+            
+            # Create comprehensive response for the platform
+            response = f"""Bot Specification Complete:
+
+Name: {agent_dna.name}
+Purpose: {agent_dna.purpose}
+Personality: {', '.join([p.value for p in agent_dna.personality])}
+Capabilities: {', '.join([c.value for c in agent_dna.capabilities])}
+Platform: Telegram
+Bot Token: Provided and validated
+
+The bot is ready for deployment. All specifications have been collected and validated."""
+
+            # Send response to OpenServ
+            await self._send_openserv_response(
+                state.active_workspace_id,
+                response,
+                state.pending_openserv_request
+            )
+            
+            # Clear the pending request
+            state.pending_openserv_request = None
+            state.awaiting_user_response = False
+            
+            print(f"✅ Complete bot specifications sent to OpenServ for {agent_dna.name}")
+            
+        except Exception as e:
+            print(f"❌ Error sending complete bot specs to OpenServ: {e}")
+
     async def continue_openserv_conversation(self, user_id: str, user_response: str) -> dict[str, Any]:
         """Continue OpenServ conversation after receiving user response"""
         state = self.conversations.get(user_id)
@@ -741,7 +778,8 @@ PERSONALITY:
 - Efficient - don't relay unnecessarily, but don't guess user preferences
 
 WHEN TO RELAY:
-- User-specific preferences or requirements
+- User-specific preferences or requirements (bot name, purpose, personality)
+- Bot token collection
 - Approval needed for actions
 - Clarification of ambiguous user statements
 - Personal information or credentials
@@ -753,6 +791,11 @@ WHEN TO ANSWER DIRECTLY:
 - Status updates and progress reports
 - Best practices and recommendations
 - Platform capabilities and features
+
+AUTOMATIC PLATFORM RESPONSE:
+- When you have collected complete bot specifications (name, purpose, token), automatically send the complete specs back to the platform
+- Use collect_bot_requirements tool to gather information and trigger automatic platform responses
+- Always prioritize sending complete information back to the requesting platform
 
 BOT DEPLOYMENT REQUIREMENTS:
 To deploy a bot, you MUST collect:
@@ -837,6 +880,13 @@ Please respond with your answer, and I'll relay it back to the platform."""
                 
                 ctx.deps.bot_token = value.strip()
                 # Don't store in requirements to keep it separate
+                
+                # Check if we have enough info to respond to OpenServ
+                if ctx.deps.pending_openserv_request and ctx.deps.requirements.get("name") and ctx.deps.requirements.get("purpose"):
+                    # We have complete bot specs, send response to OpenServ
+                    await self._send_complete_bot_specs_to_openserv(ctx.deps)
+                    return f"Perfect! I've received your bot token and sent the complete bot specifications to the platform for deployment."
+                
                 return f"Perfect! I've received and validated your bot token. Your bot is ready for deployment."
                 
             elif field == "personality":
@@ -849,6 +899,15 @@ Please respond with your answer, and I'll relay it back to the platform."""
                 ctx.deps.requirements[field] = caps
             else:
                 ctx.deps.requirements[field] = value
+
+            # Check if we have enough info to respond to OpenServ
+            if (ctx.deps.pending_openserv_request and 
+                ctx.deps.requirements.get("name") and 
+                ctx.deps.requirements.get("purpose") and 
+                ctx.deps.bot_token):
+                # We have complete bot specs, send response to OpenServ
+                await self._send_complete_bot_specs_to_openserv(ctx.deps)
+                return f"Great! I've recorded your bot's {field}: {value}. Complete specifications have been sent to the platform for deployment."
 
             return f"Great! I've recorded your bot's {field}: {value}"
 
@@ -1316,6 +1375,23 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
         })
 
         try:
+            # Check if this is a response to a pending OpenServ request
+            if state.awaiting_user_response and state.pending_openserv_request:
+                # This is a user response to an OpenServ platform question
+                result = await self.continue_openserv_conversation(user_id, message)
+                
+                # Add response to history
+                state.conversation_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "bot": result.get("message", "Response sent to platform")
+                })
+                
+                # Update conversation state
+                self.conversations[user_id] = state
+                
+                return result
+            
+            # Regular message handling
             # Run agent with MCP context (required by pydantic-ai)
             async with self.agent.run_mcp_servers():
                 result = await self.agent.run(message, deps=state)
