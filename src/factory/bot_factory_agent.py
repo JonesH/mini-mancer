@@ -456,12 +456,63 @@ Analyze this request and decide whether to answer directly or relay to the user 
             # Create bot handlers based on agent DNA
             async def start_command(update, context):
                 greeting = f"🤖 Hello! I'm {agent_dna.name}.\n\n{agent_dna.purpose}\n\nHow can I help you today?"
+                if "calculations" in [c.value for c in agent_dna.capabilities]:
+                    greeting += "\n\n🧮 I can help you with math! Try asking me to calculate something like '2 + 2' or '10 * 5'."
                 await update.message.reply_text(greeting)
             
             async def handle_message(update, context):
-                user_message = update.message.text
-                # Simple echo bot implementation - this could be enhanced with actual AI
-                response = f"Thanks for your message: '{user_message}'\n\nI'm {agent_dna.name}, and I'm here to help with: {agent_dna.purpose}"
+                user_message = update.message.text.lower().strip()
+                
+                # Handle simple greetings
+                if user_message in ['hello', 'hi', 'hey', 'greetings']:
+                    response = f"Hello! 👋 I'm {agent_dna.name}. {agent_dna.purpose}"
+                    if "calculations" in [c.value for c in agent_dna.capabilities]:
+                        response += "\n\n🧮 Try asking me to calculate something!"
+                    await update.message.reply_text(response)
+                    return
+                
+                # Handle calculator functionality for demo bot
+                if "calculations" in [c.value for c in agent_dna.capabilities]:
+                    # Try to detect and evaluate math expressions
+                    import re
+                    
+                    # Look for math expressions in the message
+                    math_pattern = r'(\d+(?:\.\d+)?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)'
+                    match = re.search(math_pattern, update.message.text)
+                    
+                    if match:
+                        try:
+                            num1, operator, num2 = match.groups()
+                            num1, num2 = float(num1), float(num2)
+                            
+                            if operator == '+':
+                                result = num1 + num2
+                            elif operator == '-':
+                                result = num1 - num2
+                            elif operator == '*':
+                                result = num1 * num2
+                            elif operator == '/':
+                                if num2 == 0:
+                                    result = "Error: Division by zero!"
+                                else:
+                                    result = num1 / num2
+                            
+                            if isinstance(result, float) and result.is_integer():
+                                result = int(result)
+                                
+                            response = f"🧮 **Calculator Result:**\n\n{num1} {operator} {num2} = **{result}**\n\n✨ Need another calculation? Just send me any math expression!"
+                            await update.message.reply_text(response, parse_mode='Markdown')
+                            return
+                            
+                        except Exception as e:
+                            response = f"🧮 I tried to calculate that but got an error. Try a simple format like '2 + 2' or '10 * 5'."
+                            await update.message.reply_text(response)
+                            return
+                
+                # Default response for non-math messages
+                response = f"Thanks for your message! I'm {agent_dna.name}.\n\n{agent_dna.purpose}"
+                if "calculations" in [c.value for c in agent_dna.capabilities]:
+                    response += "\n\n🧮 Try sending me a math problem like '5 + 3' or '12 / 4'!"
                 await update.message.reply_text(response)
             
             # Add handlers
@@ -679,6 +730,12 @@ When users want to deploy a bot, guide them to:
 3. Provide the token to you for deployment
 4. Use the deployment button when ready
 
+DEMO BOT FEATURE:
+- For new users or demonstrations, offer the instant demo calculator bot
+- Use send_welcome_with_demo_button tool for first-time interactions
+- Demo bot deploys instantly without questions using pre-configured settings
+- Demo bot responds to "hello" and can perform basic math calculations
+
 COMMUNICATION STYLE:
 - Speak naturally and conversationally to users
 - Avoid technical jargon or internal status messages
@@ -686,6 +743,7 @@ COMMUNICATION STYLE:
 - Transform technical responses into user-friendly language
 - Be encouraging and helpful throughout the process
 - Focus on what the user needs to do next
+- For new conversations, always offer the demo bot option first
 
 Always maintain message history and provide complete, contextual responses."""
 
@@ -996,6 +1054,58 @@ Based on analysis, proceeding with transparent communication and proactive assis
             return "🔄 Conversation reset! Let's start fresh. What kind of bot would you like to create?"
 
         @self.agent.tool
+        async def deploy_demo_bot(ctx: RunContext[ConversationState]) -> str:
+            """Deploy a demo calculator bot instantly for demonstration"""
+            try:
+                # Pre-configured demo bot specifications
+                demo_requirements = {
+                    "name": "DemoCalc",
+                    "purpose": "A simple demonstration calculator bot that can perform basic math operations",
+                    "personality": ["helpful", "professional"],
+                    "capabilities": ["chat", "calculations"]
+                }
+                
+                # Use the provided demo token
+                demo_token = "7782491194:AAGASFrGbNqFIrO1hdZhGicajSJQP3mUK6E"
+                
+                # Convert to AgentDNA
+                agent_dna = self._requirements_to_dna(demo_requirements)
+                
+                # Generate demo task ID
+                demo_task_id = f"demo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                
+                # Deploy the demo bot directly
+                deployment_result = await self._deploy_bot_instance(
+                    demo_token,
+                    agent_dna,
+                    demo_task_id,
+                    ctx.deps.user_id
+                )
+                
+                if deployment_result["success"]:
+                    # Store demo bot info in conversation state
+                    ctx.deps.deployed_bot_instance = deployment_result["bot_instance_id"]
+                    ctx.deps.active_project_id = demo_task_id
+                    
+                    return f"🎉 **Demo Bot Deployed Successfully!**\n\n" \
+                           f"🤖 **Bot Username:** @{deployment_result['bot_username']}\n" \
+                           f"🧮 **Type:** Calculator Demo Bot\n" \
+                           f"📝 **Instance ID:** {deployment_result['bot_instance_id']}\n\n" \
+                           f"✅ **Your demo bot is now LIVE!**\n" \
+                           f"🔥 **Check your messages - your demo bot will contact you directly!**\n" \
+                           f"🔗 Direct link: https://t.me/{deployment_result['bot_username']}\n\n" \
+                           f"🧮 **Try asking it to calculate something like:** '2 + 2' or '10 * 5'\n" \
+                           f"💬 **Or just say 'hello' to see it respond!**\n\n" \
+                           f"🎯 **Your demo bot is introducing itself to you right now!**"
+                else:
+                    return f"❌ **Demo Deployment Failed**\n\n" \
+                           f"Error: {deployment_result['error']}\n\n" \
+                           f"Please try again or contact support."
+                           
+            except Exception as e:
+                return f"❌ Error deploying demo bot: {str(e)}"
+
+        @self.agent.tool
         async def list_deployed_bots(ctx: RunContext[ConversationState]) -> str:
             """List all deployed bot instances for this user"""
             user_bots = []
@@ -1043,6 +1153,57 @@ Based on analysis, proceeding with transparent communication and proactive assis
                 return f"🛑 Bot instance {bot_instance_id} (@{bot_info['bot_username']}) stopped successfully"
             else:
                 return f"❌ Failed to stop bot instance {bot_instance_id}"
+
+        @self.agent.tool
+        async def send_welcome_with_demo_button(ctx: RunContext[ConversationState]) -> str:
+            """Send welcome message with demo bot deployment button"""
+            try:
+                # Create inline keyboard with demo button
+                inline_keyboard = {
+                    "inline_keyboard": [
+                        [{"text": "🚀 Deploy Demo Calculator Bot", "callback_data": "deploy_demo"}],
+                        [{"text": "🛠️ Create Custom Bot", "callback_data": "create_custom"}],
+                        [{"text": "ℹ️ Learn More", "callback_data": "learn_more"}]
+                    ]
+                }
+                
+                # Create welcome message
+                welcome_message = f"""🎉 **Welcome to Mini-Mancer Bot Factory!** 🏭
+
+I'm your AI assistant for creating and deploying Telegram bots instantly!
+
+🚀 **Quick Demo:** Try our calculator bot - it's ready to deploy in seconds!
+🛠️ **Custom Bot:** Create a personalized bot with your own specifications
+ℹ️ **Learn More:** Discover what kinds of bots you can create
+
+**What would you like to do?**"""
+
+                # Send message with inline buttons
+                if self.telegram_bot_token:
+                    telegram_api_url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage"
+                    
+                    payload = {
+                        "chat_id": ctx.deps.chat_id,
+                        "text": welcome_message,
+                        "parse_mode": "Markdown",
+                        "reply_markup": inline_keyboard
+                    }
+                    
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(telegram_api_url, json=payload)
+                        
+                        if response.status_code == 200:
+                            return "✅ Welcome message with demo button sent!"
+                        else:
+                            # Fallback to text-only message
+                            fallback_message = welcome_message + "\n\n💡 Reply with 'demo' to deploy the calculator bot, or 'custom' to create your own!"
+                            await self._send_telegram_message(ctx.deps.chat_id, fallback_message)
+                            return "✅ Welcome message sent (fallback mode)"
+                else:
+                    return "📱 Would send welcome message with demo button"
+                    
+            except Exception as e:
+                return f"❌ Error sending welcome message: {str(e)}"
 
     def _requirements_to_dna(self, requirements: dict[str, Any]) -> AgentDNA:
         """Convert user requirements to AgentDNA format"""
@@ -1142,6 +1303,39 @@ Based on analysis, proceeding with transparent communication and proactive assis
     async def handle_deployment_callback(self, callback_data: str, chat_id: str, user_id: str) -> str:
         """Handle deployment button callbacks"""
         try:
+            if callback_data == "deploy_demo":
+                # Handle demo bot deployment
+                user_state = self.conversations.get(user_id, ConversationState(
+                    user_id=user_id,
+                    chat_id=chat_id,
+                    active_workspace_id=self.workspace_id
+                ))
+                
+                # Deploy demo bot using the tool
+                async with self.agent.run_mcp_servers():
+                    result = await self.agent.run("deploy_demo_bot", deps=user_state)
+                    response = result.data
+                
+                # Update conversation state
+                self.conversations[user_id] = user_state
+                return response
+                
+            elif callback_data == "create_custom":
+                return "🛠️ **Let's create your custom bot!**\n\n" \
+                       "What would you like to name your bot? This will be its display name when users interact with it."
+                       
+            elif callback_data == "learn_more":
+                return "ℹ️ **About Mini-Mancer Bot Factory**\n\n" \
+                       "I can help you create various types of Telegram bots:\n\n" \
+                       "🤖 **Chat Bots** - Conversational assistants\n" \
+                       "🧮 **Calculator Bots** - Math and computation helpers\n" \
+                       "🖼️ **Image Analysis Bots** - Photo processing and description\n" \
+                       "🔍 **Search Bots** - Web search capabilities\n" \
+                       "📅 **Reminder Bots** - Scheduling and notifications\n" \
+                       "📄 **File Handler Bots** - Document processing\n\n" \
+                       "Ready to create your own? Just tell me what kind of bot you'd like!"
+            
+            # Handle regular deployment callbacks
             action, task_id = callback_data.split("_", 1)
             
             if action == "deploy":
