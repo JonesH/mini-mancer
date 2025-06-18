@@ -13,6 +13,7 @@ import os
 import asyncio
 import json
 import httpx
+import re
 from typing import Any, Optional, Dict, List, Union
 from datetime import datetime, timedelta
 
@@ -81,7 +82,11 @@ class BotFactoryAgent:
 
     Connects to OpenServ via MCP to handle the complete bot creation workflow.
     """
-
+    
+    TELEGRAM_API_BASE_URL: str = "https://api.telegram.org/bot"
+    BOT_TOKEN_PATTERN = re.compile(r"^\d+:[\w-]+$")
+    URGENCY_EMOJIS = {"low": "ℹ️", "normal": "🔔", "high": "⚠️", "critical": "🚨"}
+    
     def __init__(
         self,
         openserv_api_key: str,
@@ -508,91 +513,45 @@ The bot is ready for deployment. All specifications have been collected and vali
             except:
                 pass
 
-    async def _deploy_bot_instance(self, bot_token: str, agent_dna, task_id: str, creator_user_id: str) -> dict[str, Any]:
-        """Actually deploy a new bot instance using the provided token"""
+    async def _deploy_bot_instance(self, bot_token: str, agent_dna: AgentDNA, task_id: str, creator_user_id: str) -> dict[str, Any]:
+        """Deploy a new bot instance using the provided token."""
         try:
             from telegram import Bot
             from telegram.ext import Application, CommandHandler, MessageHandler, filters
-            
-            # Validate bot token by creating a test bot instance
+
+            # Validate bot token
             test_bot = Bot(token=bot_token)
             bot_info = await test_bot.get_me()
-            
+            if not bot_info:
+                return {"success": False, "error": "Invalid bot token."}
             print(f"✅ Bot token validated. Bot username: @{bot_info.username}")
-            
-            # Generate bot instance ID
+
             bot_instance_id = f"bot_{task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            
-            # Create the actual bot application
             application = Application.builder().token(bot_token).build()
-            
-            # Create bot handlers based on agent DNA
+
             async def start_command(update, context):
                 greeting = f"🤖 Hello! I'm {agent_dna.name}.\n\n{agent_dna.purpose}\n\nHow can I help you today?"
                 if "calculations" in [c.value for c in agent_dna.capabilities]:
-                    greeting += "\n\n🧮 I can help you with math! Try asking me to calculate something like '2 + 2' or '10 * 5'."
+                    greeting += "\n\n🧮 I can help you with math! Try asking me to calculate something like '2 + 2'."
                 await update.message.reply_text(greeting)
-            
+
             async def handle_message(update, context):
-                user_message = update.message.text.lower().strip()
-                
-                # Handle simple greetings
-                if user_message in ['hello', 'hi', 'hey', 'greetings']:
-                    response = f"Hello! 👋 I'm {agent_dna.name}. {agent_dna.purpose}"
-                    if "calculations" in [c.value for c in agent_dna.capabilities]:
-                        response += "\n\n🧮 Try asking me to calculate something!"
-                    await update.message.reply_text(response)
+                user_message = update.message.text
+                # Use helper to handle math expression
+                math_result = await self._handle_math_expression(user_message)
+                if math_result is not None:
+                    await update.message.reply_text(f"🧮 Calculator Result: {math_result}", parse_mode='Markdown')
                     return
-                
-                # Handle calculator functionality for demo bot
-                if "calculations" in [c.value for c in agent_dna.capabilities]:
-                    # Try to detect and evaluate math expressions
-                    import re
-                    
-                    # Look for math expressions in the message
-                    math_pattern = r'(\d+(?:\.\d+)?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)'
-                    match = re.search(math_pattern, update.message.text)
-                    
-                    if match:
-                        try:
-                            num1, operator, num2 = match.groups()
-                            num1, num2 = float(num1), float(num2)
-                            
-                            if operator == '+':
-                                result = num1 + num2
-                            elif operator == '-':
-                                result = num1 - num2
-                            elif operator == '*':
-                                result = num1 * num2
-                            elif operator == '/':
-                                if num2 == 0:
-                                    result = "Error: Division by zero!"
-                                else:
-                                    result = num1 / num2
-                            
-                            if isinstance(result, float) and result.is_integer():
-                                result = int(result)
-                                
-                            response = f"🧮 **Calculator Result:**\n\n{num1} {operator} {num2} = **{result}**\n\n✨ Need another calculation? Just send me any math expression!"
-                            await update.message.reply_text(response, parse_mode='Markdown')
-                            return
-                            
-                        except Exception as e:
-                            response = f"🧮 I tried to calculate that but got an error. Try a simple format like '2 + 2' or '10 * 5'."
-                            await update.message.reply_text(response)
-                            return
-                
-                # Default response for non-math messages
+
+                # Default response
                 response = f"Thanks for your message! I'm {agent_dna.name}.\n\n{agent_dna.purpose}"
                 if "calculations" in [c.value for c in agent_dna.capabilities]:
                     response += "\n\n🧮 Try sending me a math problem like '5 + 3' or '12 / 4'!"
                 await update.message.reply_text(response)
-            
-            # Add handlers
+
             application.add_handler(CommandHandler("start", start_command))
             application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-            
-            # Store bot information (before starting to avoid race conditions)
+
             bot_info_dict = {
                 "bot_instance_id": bot_instance_id,
                 "bot_token": bot_token,
@@ -604,15 +563,13 @@ The bot is ready for deployment. All specifications have been collected and vali
                 "status": "starting",
                 "creator_user_id": creator_user_id,
                 "application": application,
-                "task": None  # Will be set after task creation
+                "task": None
             }
-            
             self.deployed_bots[bot_instance_id] = bot_info_dict
-            
-            # Start the bot in a background task
+
             bot_task = asyncio.create_task(self._run_bot_instance(application, bot_instance_id, creator_user_id))
             bot_info_dict["task"] = bot_task
-            
+
             return {
                 "success": True,
                 "bot_instance_id": bot_instance_id,
@@ -620,13 +577,9 @@ The bot is ready for deployment. All specifications have been collected and vali
                 "bot_id": bot_info.id,
                 "status": "deployed"
             }
-            
         except Exception as e:
             print(f"❌ Error deploying bot: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     async def _run_bot_instance(self, application, bot_instance_id: str, creator_user_id: str):
         """Run a deployed bot instance"""
@@ -860,55 +813,35 @@ Please respond with your answer, and I'll relay it back to the platform."""
                 return f"❌ Error relaying question to user: {str(e)}"
 
         @self.agent.tool
-        async def collect_bot_requirements(
-            ctx: RunContext[ConversationState],
-            field: str,
-            value: str
-        ) -> str:
-            """Collect and store bot requirements from user input"""
+        async def collect_bot_requirements(ctx: RunContext[ConversationState], field: str, value: str) -> str:
+            """Collect and store bot requirements from user input."""
             valid_fields = ["name", "purpose", "personality", "capabilities", "bot_token"]
-
+            state = ctx.deps
             if field not in valid_fields:
                 return f"❌ Invalid field. Valid fields: {', '.join(valid_fields)}"
 
             if field == "bot_token":
-                # Store bot token separately and validate format
                 if not value.strip():
                     return "❌ Bot token cannot be empty"
                 if not value.startswith(("bot", "BOT")) and ":" not in value:
                     return "❌ Invalid bot token format. Should be like: 123456789:ABC-DEF..."
-                
-                ctx.deps.bot_token = value.strip()
-                # Don't store in requirements to keep it separate
-                
-                # Check if we have enough info to respond to OpenServ
-                if ctx.deps.pending_openserv_request and ctx.deps.requirements.get("name") and ctx.deps.requirements.get("purpose"):
-                    # We have complete bot specs, send response to OpenServ
-                    await self._send_complete_bot_specs_to_openserv(ctx.deps)
-                    return f"Perfect! I've received your bot token and sent the complete bot specifications to the platform for deployment."
-                
-                return f"Perfect! I've received and validated your bot token. Your bot is ready for deployment."
-                
+                state.bot_token = value.strip()
+                if state.pending_openserv_request and state.requirements.get("name") and state.requirements.get("purpose"):
+                    await self._send_complete_bot_specs_to_openserv(state)
+                    return "Perfect! I've received your bot token and sent the complete bot specifications to the platform for deployment."
+                return "Perfect! I've received and validated your bot token. Your bot is ready for deployment."
             elif field == "personality":
-                # Parse personality traits
                 traits = [trait.strip().lower() for trait in value.split(",")]
-                ctx.deps.requirements[field] = traits
+                state.requirements[field] = traits
             elif field == "capabilities":
-                # Parse capabilities
                 caps = [cap.strip().lower().replace(" ", "_") for cap in value.split(",")]
-                ctx.deps.requirements[field] = caps
+                state.requirements[field] = caps
             else:
-                ctx.deps.requirements[field] = value
+                state.requirements[field] = value
 
-            # Check if we have enough info to respond to OpenServ
-            if (ctx.deps.pending_openserv_request and 
-                ctx.deps.requirements.get("name") and 
-                ctx.deps.requirements.get("purpose") and 
-                ctx.deps.bot_token):
-                # We have complete bot specs, send response to OpenServ
-                await self._send_complete_bot_specs_to_openserv(ctx.deps)
+            if (state.pending_openserv_request and state.requirements.get("name") and state.requirements.get("purpose") and state.bot_token):
+                await self._send_complete_bot_specs_to_openserv(state)
                 return f"Great! I've recorded your bot's {field}: {value}. Complete specifications have been sent to the platform for deployment."
-
             return f"Great! I've recorded your bot's {field}: {value}"
 
         @self.agent.tool
@@ -1774,3 +1707,112 @@ Reply to this message or use the platform interface to respond.
 """
 
         return await self._send_telegram_message(chat_id, message)
+
+    async def _handle_math_expression(self, message: str) -> str | None:
+        """Extract and evaluate a math expression from the message, if any."""
+        import re
+        math_pattern = r'(\d+(?:\.\d+)?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)'
+        match = re.search(math_pattern, message)
+        if match:
+            try:
+                num1, operator, num2 = match.groups()
+                num1, num2 = float(num1), float(num2)
+                if operator == '+':
+                    result = num1 + num2
+                elif operator == '-':
+                    result = num1 - num2
+                elif operator == '*':
+                    result = num1 * num2
+                elif operator == '/':
+                    if num2 == 0:
+                        return "Error: Division by zero!"
+                    result = num1 / num2
+                return str(int(result)) if isinstance(result, float) and result.is_integer() else str(result)
+            except Exception:
+                return None
+        return None
+
+    def _format_markdown_for_telegram(self, message: str) -> str:
+        """Format markdown message by converting '**' to '*' for Telegram."""
+        return message.replace("**", "*")
+
+    async def _send_telegram_api_request(self, chat_id: str, payload: dict[str, Any]) -> bool:
+        """Send a Telegram API request using a unified method."""
+        url = f"{self.TELEGRAM_API_BASE_URL}{self.telegram_bot_token}/sendMessage"
+        async with self._get_http_client() as client:
+            response = await client.post(url, json=payload)
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("ok", False)
+            return False
+
+    async def _get_http_client(self) -> httpx.AsyncClient:
+        """Return an async HTTP client."""
+        return httpx.AsyncClient(timeout=30.0)
+
+    def _get_state(self, user_id: str, chat_id: str) -> ConversationState:
+        """Retrieve conversation state for a user."""
+        return self.conversations.get(user_id, ConversationState(user_id=user_id, chat_id=chat_id, active_workspace_id=self.workspace_id))
+
+    def _update_state(self, user_id: str, state: ConversationState) -> None:
+        """Update conversation state for a user."""
+        self.conversations[user_id] = state
+
+    def _create_inline_keyboard(self, buttons: list[list[dict[str, str]]]) -> dict:
+        """Create an inline keyboard payload."""
+        return {"inline_keyboard": buttons}
+
+    async def _send_welcome_message_with_buttons(self, state: ConversationState) -> str:
+        """Send a welcome message with inline buttons."""
+        inline_keyboard = self._create_inline_keyboard([
+            [{"text": "🚀 Deploy Demo Calculator Bot", "callback_data": "deploy_demo"}],
+            [{"text": "🛠️ Create Custom Bot", "callback_data": "create_custom"}],
+            [{"text": "ℹ️ Learn More", "callback_data": "learn_more"}]
+        ])
+        payload = {
+            "chat_id": state.chat_id,
+            "text": "🎉 Welcome to Mini-Mancer Bot Factory!\nWhat would you like to do?",
+            "parse_mode": "Markdown",
+            "reply_markup": inline_keyboard
+        }
+        success = await self._send_telegram_api_request(state.chat_id, payload)
+        return "Welcome message sent!" if success else "Failed to send welcome message."
+
+    async def _send_deployment_buttons(self, state: ConversationState, agent_dna: AgentDNA, task_id: str) -> None:
+        """Send deployment buttons to the user with task info."""
+        inline_keyboard = self._create_inline_keyboard([
+            [{"text": "🚀 Deploy Bot", "callback_data": f"deploy_{task_id}"}],
+            [{"text": "📋 Review Specs", "callback_data": f"review_{task_id}"}],
+            [{"text": "❌ Cancel", "callback_data": f"cancel_{task_id}"}]
+        ])
+        payload = {
+            "chat_id": state.chat_id,
+            "text": f"Bot '{agent_dna.name}' is ready for deployment. Task ID: {task_id}",
+            "parse_mode": "Markdown",
+            "reply_markup": inline_keyboard
+        }
+        await self._send_telegram_api_request(state.chat_id, payload)
+
+    async def _create_openserv_task_api(self, agent_dna: AgentDNA) -> str | None:
+        """Create an OpenServ task via API."""
+        api_url = f"https://api.openserv.ai/workspaces/{self.workspace_id}/tasks"
+        task_spec = {
+            "assignee": 1,
+            "description": f"Deploy Telegram bot: {agent_dna.name}",
+            "body": f"Create and deploy a Telegram bot:\nName: {agent_dna.name}\nPurpose: {agent_dna.purpose}",
+            "input": agent_dna.generate_system_prompt(),
+            "expectedOutput": "A deployed Telegram bot ready for user interaction"
+        }
+        async with self._get_http_client() as client:
+            response = await client.post(api_url, headers=self.openserv_headers, json=task_spec)
+            if response.status_code in [200, 201]:
+                data = response.json()
+                return str(data.get("id")) if data.get("id") else None
+        return None
+
+    async def _complete_openserv_task_api(self, task_id: str, output: str) -> None:
+        """Mark an OpenServ task as complete via API."""
+        api_url = f"https://api.openserv.ai/workspaces/{self.workspace_id}/tasks/{task_id}/complete"
+        payload = {"output": output}
+        async with self._get_http_client() as client:
+            await client.put(api_url, headers=self.openserv_headers, json=payload)
