@@ -783,14 +783,9 @@ Always maintain message history and provide complete, contextual responses."""
         """Register tools for bot creation workflow with human assistance detection"""
 
         @self.agent.tool
-        async def relay_to_user(
-            ctx: RunContext[ConversationState],
-            question: str,
-            context: str = "General question"
-        ) -> str:
-            """Relay a question to the user via Telegram and wait for their response"""
+        async def relay_to_user(ctx: RunContext[ConversationState], question: str, context: str = "General question") -> str:
+            """Relay a question to the user via Telegram and wait for their response."""
             try:
-                # Send question to user via Telegram
                 telegram_message = f"""🤖 **Question from OpenServ Platform:**
 
 {question}
@@ -798,17 +793,13 @@ Always maintain message history and provide complete, contextual responses."""
 **Context:** {context}
 
 Please respond with your answer, and I'll relay it back to the platform."""
-
-                success = await self._send_telegram_message(ctx.deps.chat_id, telegram_message)
-                
+                state = ctx.deps
+                success = await self._send_telegram_message(state.chat_id, telegram_message)
                 if success:
-                    # Mark conversation as awaiting user response
-                    ctx.deps.awaiting_user_response = True
-                    
-                    return f"I've sent your question to the user via Telegram and I'm waiting for their response."
+                    state.awaiting_user_response = True
+                    return "I've sent your question to the user via Telegram and I'm waiting for their response."
                 else:
                     return "I wasn't able to reach the user via Telegram. Let me try to answer this directly."
-                    
             except Exception as e:
                 return f"❌ Error relaying question to user: {str(e)}"
 
@@ -1638,41 +1629,13 @@ I'm your AI assistant for creating and deploying Telegram bots instantly!
                 project.human_assistance_requests.append(assistance_req)
 
     async def _send_telegram_message(self, chat_id: str, message: str) -> bool:
-        """Send actual message via Telegram Bot API using httpx"""
+        """Send a Telegram message using unified API request."""
         if not self.telegram_bot_token:
             print("❌ No Telegram bot token configured")
             return False
-
-        url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage"
-
-        # Format message for Telegram (convert markdown-style formatting)
-        formatted_message = message.replace("**", "*")  # Convert to Telegram markdown
-
-        payload = {
-            "chat_id": chat_id,
-            "text": formatted_message,
-            "parse_mode": "Markdown"
-        }
-
-        try:
-            # Use httpx.AsyncClient context manager pattern from docs
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, json=payload)
-
-                if response.status_code == 200:
-                    result = response.json()
-                    if result.get("ok"):
-                        print(f"✅ Telegram message sent successfully to chat {chat_id}")
-                        return True
-                    else:
-                        print(f"❌ Telegram API error: {result.get('description', 'Unknown error')}")
-                        return False
-                else:
-                    print(f"❌ HTTP error {response.status_code}: {response.text}")
-                    return False
-        except Exception as e:
-            print(f"❌ Exception sending Telegram message: {e}")
-            return False
+        formatted_message = self._format_markdown_for_telegram(message)
+        payload = {"chat_id": chat_id, "text": formatted_message, "parse_mode": "Markdown"}
+        return await self._send_telegram_api_request(chat_id, payload)
 
     async def send_assistance_notification(self, chat_id: str, request: HumanAssistanceRequest) -> bool:
         """Send formatted assistance notification to Telegram"""
