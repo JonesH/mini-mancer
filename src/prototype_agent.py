@@ -12,9 +12,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
+from dotenv import load_dotenv
 
 from .agents import TelegramBotTemplate, TelegramWebhookHandler
 from .models.agent_dna import TELEGRAM_BOT_TEMPLATE
+
+# Load environment variables
+load_dotenv()
 
 
 class TelegramWebhookRequest(BaseModel):
@@ -54,12 +58,16 @@ class PrototypeAgent:
         
         # Get bot tokens from environment
         self.factory_token = os.getenv("BOT_TOKEN") or os.getenv("TEST_BOT_TOKEN")
-        self.created_bot_token = os.getenv("BOT_TOKEN_1")
+        self.created_bot_token = os.getenv("BOT_TOKEN_1") or self.factory_token  # Fallback to same token for testing
         
         if not self.factory_token:
             raise ValueError("BOT_TOKEN or TEST_BOT_TOKEN environment variable required")
-        if not self.created_bot_token:
-            raise ValueError("BOT_TOKEN_1 environment variable required for created bots")
+        
+        # Log token status
+        print(f"🔑 Factory token: {self.factory_token[:15]}...")
+        print(f"🔑 Created bot token: {self.created_bot_token[:15]}...")
+        if self.factory_token == self.created_bot_token:
+            print("⚠️  Using same token for both factory and created bot (testing mode)")
         
         # Track the currently active created bot
         self.active_created_bot: TelegramBotTemplate | None = None
@@ -192,67 +200,52 @@ Your new bot will be deployed shortly! The link will be active once deployment c
             return f"❌ Error creating bot: {str(e)}"
     
     async def start_created_bot(self, bot_template: TelegramBotTemplate) -> str:
-        """Start the created bot with actual Telegram polling"""
-        from telegram.ext import Application, CommandHandler, MessageHandler, filters
+        """Start the created bot with webhook instead of polling"""
+        import httpx
         
         try:
             # Stop previous bot if exists
             await self.stop_created_bot()
             
-            # Create Telegram application for the created bot
-            self.created_bot_application = Application.builder().token(self.created_bot_token).build()
+            # Store the active created bot for webhook routing
+            self.active_created_bot = bot_template
             
-            # Add handlers for the created bot
-            async def created_bot_start(update, context):
-                user_id = update.effective_user.id
-                chat_id = update.effective_chat.id
-                print(f"🤖 [CREATED BOT] /start from user {user_id} in chat {chat_id}")
+            # Set up webhook for the created bot
+            webhook_url = "https://agents.bartix.de/telegram/webhook"
+            
+            async with httpx.AsyncClient() as client:
+                # Get bot info first
+                bot_info_response = await client.get(
+                    f"https://api.telegram.org/bot{self.created_bot_token}/getMe"
+                )
                 
-                response = await bot_template.handle_message({
-                    "from": {"id": user_id, "username": update.effective_user.username},
-                    "chat": {"id": chat_id},
-                    "text": "/start",
-                    "message_id": update.message.message_id
-                })
+                if bot_info_response.status_code != 200:
+                    raise Exception(f"Failed to get bot info: {bot_info_response.text}")
                 
-                print(f"🤖 [CREATED BOT] Response: {response[:100]}...")
-                await update.message.reply_text(response)
-                print(f"🤖 [CREATED BOT] Message sent to user {user_id}")
-            
-            async def created_bot_message(update, context):
-                user_id = update.effective_user.id
-                chat_id = update.effective_chat.id
-                message_text = update.message.text
-                print(f"🤖 [CREATED BOT] Message from user {user_id}: '{message_text}'")
+                bot_info = bot_info_response.json()["result"]
+                username = bot_info["username"]
                 
-                response = await bot_template.handle_message({
-                    "from": {"id": user_id, "username": update.effective_user.username},
-                    "chat": {"id": chat_id},
-                    "text": message_text,
-                    "message_id": update.message.message_id
-                })
+                # Set webhook
+                webhook_response = await client.post(
+                    f"https://api.telegram.org/bot{self.created_bot_token}/setWebhook",
+                    json={
+                        "url": webhook_url,
+                        "allowed_updates": ["message"]
+                    }
+                )
                 
-                print(f"🤖 [CREATED BOT] Response: {response[:100]}...")
-                await update.message.reply_text(response)
-                print(f"🤖 [CREATED BOT] Message sent to user {user_id}")
-            
-            self.created_bot_application.add_handler(CommandHandler("start", created_bot_start))
-            self.created_bot_application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, created_bot_message))
-            
-            # Start the bot
-            print("🔄 [CREATED BOT] Initializing...")
-            await self.created_bot_application.initialize()
-            print("🔄 [CREATED BOT] Starting...")
-            await self.created_bot_application.start()
-            print("🔄 [CREATED BOT] Starting polling...")
-            await self.created_bot_application.updater.start_polling()
-            
-            # Get bot info
-            bot_info = await self.created_bot_application.bot.get_me()
-            
-            print(f"✅ [CREATED BOT] Successfully started: @{bot_info.username}")
-            print(f"✅ [CREATED BOT] Ready to receive messages")
-            return bot_info.username
+                if webhook_response.status_code != 200:
+                    raise Exception(f"Failed to set webhook: {webhook_response.text}")
+                
+                webhook_result = webhook_response.json()
+                if not webhook_result["ok"]:
+                    raise Exception(f"Webhook setup failed: {webhook_result}")
+                
+                print(f"✅ [CREATED BOT] Webhook set successfully: @{username}")
+                print(f"✅ [CREATED BOT] Webhook URL: {webhook_url}")
+                print(f"✅ [CREATED BOT] Ready to receive webhook messages")
+                
+                return username
             
         except Exception as e:
             print(f"❌ Error starting created bot: {e}")
@@ -260,16 +253,18 @@ Your new bot will be deployed shortly! The link will be active once deployment c
     
     async def stop_created_bot(self):
         """Stop the currently running created bot"""
-        if self.created_bot_application:
+        if self.active_created_bot:
+            import httpx
             try:
-                await self.created_bot_application.updater.stop()
-                await self.created_bot_application.stop()
-                await self.created_bot_application.shutdown()
-                print("🛑 Previous created bot stopped")
+                # Remove webhook
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        f"https://api.telegram.org/bot{self.created_bot_token}/deleteWebhook"
+                    )
+                print("🛑 Previous created bot webhook removed")
             except Exception as e:
-                print(f"❌ Error stopping created bot: {e}")
+                print(f"❌ Error removing created bot webhook: {e}")
             finally:
-                self.created_bot_application = None
                 self.active_created_bot = None
     
     def _setup_routes(self):
@@ -289,17 +284,41 @@ Your new bot will be deployed shortly! The link will be active once deployment c
         
         @self.app.post("/telegram/webhook")
         async def telegram_webhook(request: TelegramWebhookRequest):
-            """Handle Telegram webhooks via existing TelegramBotTemplate"""
+            """Handle Telegram webhooks - route to factory or created bot"""
             try:
                 # Convert request to dict for handler
                 webhook_data = request.model_dump()
                 
-                # Process via existing telegram handler
-                response = await self.telegram_handler.handle_webhook(webhook_data)
+                # Determine which bot this message is for by checking token
+                message = webhook_data.get("message")
+                if not message:
+                    return {"ok": True, "description": "No message in webhook"}
                 
-                return response
+                # For now, route all webhook messages to the created bot
+                # (Factory bot stays on polling)
+                if self.active_created_bot:
+                    print(f"🔗 [WEBHOOK] Routing message to created bot")
+                    
+                    # Handle message with created bot
+                    response_text = await self.active_created_bot.handle_message(message)
+                    
+                    # Return response for Telegram API
+                    return {
+                        "method": "sendMessage",
+                        "chat_id": message["chat"]["id"],
+                        "text": response_text,
+                        "reply_to_message_id": message["message_id"]
+                    }
+                else:
+                    print(f"❌ [WEBHOOK] No active created bot to handle message")
+                    return {
+                        "method": "sendMessage",
+                        "chat_id": message["chat"]["id"],
+                        "text": "🤖 Bot is not currently active. Please try again later."
+                    }
                 
             except Exception as e:
+                print(f"❌ [WEBHOOK] Error: {e}")
                 raise HTTPException(status_code=500, detail=f"Telegram webhook error: {e}")
         
         @self.app.post("/openserv/do_task")
