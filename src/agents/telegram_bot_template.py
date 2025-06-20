@@ -11,8 +11,8 @@ from typing import Any, Optional
 from datetime import datetime
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
-# Model types are just strings
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
 
 from ..models.agent_dna import AgentDNA, AgentCapability
 
@@ -30,35 +30,35 @@ class TelegramContext(BaseModel):
 class TelegramBotTemplate:
     """
     A template for creating Telegram bots that can be brought to life with AgentDNA.
-    
+
     The template provides the platform-specific functionality (Telegram API integration,
     message handling, etc.) while AgentDNA provides the personality and capabilities.
     """
-    
+
     def __init__(
         self,
         agent_dna: AgentDNA,
-        model: str = "openai:gpt-4o-mini",
+        model: str = "gpt-4o-mini",
         bot_token: str | None = None
     ):
         self.dna = agent_dna
         self.bot_token = bot_token
         self.active_contexts: dict[str, TelegramContext] = {}
-        
+
         # Create the AI agent with DNA-generated system prompt
         self.agent = Agent(
-            model=model,
-            deps_type=TelegramContext,
-            system_prompt=self._build_system_prompt(),
+            model=OpenAIChat(id=model),
+            description=self._build_system_prompt(),
+            markdown=True,
         )
-        
+
         # Register capabilities as tools
         self._register_capability_tools()
-    
+
     def _build_system_prompt(self) -> str:
         """Build comprehensive system prompt from AgentDNA"""
         base_prompt = self.dna.generate_system_prompt()
-        
+
         # Add Telegram-specific instructions
         telegram_instructions = """
 
@@ -76,59 +76,23 @@ MESSAGE HANDLING:
 - Handle file uploads when relevant to your capabilities
 - Respond to commands that start with '/'
 """
-        
+
         return base_prompt + telegram_instructions
-    
+
     def _register_capability_tools(self):
         """Register tools based on agent's DNA capabilities"""
-        
-        if AgentCapability.IMAGE_ANALYSIS in self.dna.capabilities:
-            @self.agent.tool
-            async def analyze_image(ctx: RunContext[TelegramContext], image_description: str) -> str:
-                """Analyze and describe images sent by users"""
-                return f"🖼️ I can see this image shows: {image_description}. How can I help you with it?"
-        
-        if AgentCapability.REMINDERS in self.dna.capabilities:
-            @self.agent.tool
-            async def set_reminder(
-                ctx: RunContext[TelegramContext], 
-                reminder_text: str, 
-                when: str
-            ) -> str:
-                """Set a reminder for the user"""
-                # In a real implementation, this would integrate with a scheduling system
-                ctx.deps.user_preferences[f"reminder_{datetime.now().isoformat()}"] = {
-                    "text": reminder_text,
-                    "when": when,
-                    "user_id": ctx.deps.user_id
-                }
-                return f"⏰ Reminder set: '{reminder_text}' for {when}"
-        
-        if AgentCapability.CALCULATIONS in self.dna.capabilities:
-            @self.agent.tool
-            async def calculate(ctx: RunContext[TelegramContext], expression: str) -> str:
-                """Perform mathematical calculations"""
-                try:
-                    # Safe evaluation of basic math expressions
-                    result = eval(expression, {"__builtins__": {}}, {})
-                    return f"🔢 {expression} = {result}"
-                except Exception:
-                    return f"❌ Sorry, I couldn't calculate '{expression}'. Please check the expression."
-        
-        if AgentCapability.WEB_SEARCH in self.dna.capabilities:
-            @self.agent.tool
-            async def search_web(ctx: RunContext[TelegramContext], query: str) -> str:
-                """Search the web for information"""
-                # Placeholder - would integrate with actual search API
-                return f"🔍 I'd search for '{query}' but web search isn't fully implemented yet. Can I help you another way?"
-    
+        # For prototype, we'll keep this simple and let the agent handle capabilities
+        # through its description rather than registering explicit tools
+        # In a full implementation, we'd use agno's tool system here
+        pass
+
     async def handle_message(self, message_data: dict[str, Any]) -> str:
         """
         Handle incoming Telegram message and generate response.
-        
+
         Args:
             message_data: Raw Telegram message data
-            
+
         Returns:
             Response text to send back to user
         """
@@ -136,68 +100,68 @@ MESSAGE HANDLING:
         user_info = message_data.get("from", {})
         chat_info = message_data.get("chat", {})
         text = message_data.get("text", "")
-        
+
         user_id = str(user_info.get("id", ""))
         chat_id = str(chat_info.get("id", ""))
         username = user_info.get("username")
         message_id = message_data.get("message_id")
-        
+
         # Get or create context
         context = self._get_or_create_context(
             user_id, chat_id, username, message_id
         )
-        
+
         # Add message to conversation history
         context.conversation_history.append({
             "timestamp": datetime.now().isoformat(),
             "user": text,
             "message_id": message_id
         })
-        
+
         try:
             # Generate response using AI agent
-            result = await self.agent.run(text, deps=context)
-            response = result.data
-            
+            result = self.agent.run(text)
+            response = result.content
+
             # Add response to conversation history
             context.conversation_history.append({
                 "timestamp": datetime.now().isoformat(),
                 "bot": response
             })
-            
+
             return response
-            
+
         except Exception as e:
             error_response = f"Sorry, I encountered an error: {str(e)}"
             return error_response
-    
+
     async def handle_photo(self, photo_data: dict[str, Any]) -> str:
         """Handle photo messages"""
         if AgentCapability.IMAGE_ANALYSIS not in self.dna.capabilities:
             return "📷 I received your photo, but I don't have image analysis capabilities enabled."
-        
+
         # In a real implementation, would download and analyze the photo
         caption = photo_data.get("caption", "")
         response = f"📷 I can see you sent me a photo"
         if caption:
             response += f" with caption: '{caption}'"
         response += ". Image analysis would happen here in a full implementation!"
-        
+
         return response
-    
+
     async def handle_document(self, document_data: dict[str, Any]) -> str:
         """Handle document/file messages"""
         if AgentCapability.FILE_HANDLING not in self.dna.capabilities:
             return "📎 I received your file, but I don't have file handling capabilities enabled."
-        
+
         filename = document_data.get("file_name", "unknown file")
         return f"📎 I received your file '{filename}'. File processing would happen here in a full implementation!"
-    
+
     def _get_or_create_context(
-        self, 
-        user_id: str, 
-        chat_id: str, 
-        username: str | None, 
+        self,
+        user_id: str,
+        chat_id: str,
+        username: str | None,
         message_id: int | None
     ) -> TelegramContext:
         """Get existing context or create new one for user"""
@@ -212,9 +176,9 @@ MESSAGE HANDLING:
             # Update context with latest message info
             context = self.active_contexts[user_id]
             context.message_id = message_id
-        
+
         return self.active_contexts[user_id]
-    
+
     def get_agent_info(self) -> dict[str, Any]:
         """Get information about this agent instance"""
         return {
@@ -227,7 +191,7 @@ MESSAGE HANDLING:
             "created_at": self.dna.created_at.isoformat(),
             "active_conversations": len(self.active_contexts)
         }
-    
+
     async def shutdown(self):
         """Clean shutdown of the bot"""
         # Save any persistent context data
@@ -239,17 +203,17 @@ class TelegramWebhookHandler:
     """
     Handles incoming Telegram webhooks and routes them to the appropriate bot template.
     """
-    
+
     def __init__(self, bot_template: TelegramBotTemplate):
         self.bot = bot_template
-    
+
     async def handle_webhook(self, webhook_data: dict[str, Any]) -> dict[str, Any]:
         """
         Process incoming Telegram webhook.
-        
+
         Args:
             webhook_data: Raw webhook payload from Telegram
-            
+
         Returns:
             Response to send back to Telegram API
         """
@@ -257,10 +221,10 @@ class TelegramWebhookHandler:
             message = webhook_data.get("message")
             if not message:
                 return {"ok": True, "description": "No message in webhook"}
-            
+
             # Determine message type and route accordingly
             response_text = ""
-            
+
             if "text" in message:
                 response_text = await self.bot.handle_message(message)
             elif "photo" in message:
@@ -269,7 +233,7 @@ class TelegramWebhookHandler:
                 response_text = await self.bot.handle_document(message)
             else:
                 response_text = "I received your message, but I'm not sure how to handle this type of content yet."
-            
+
             # Return response for Telegram API
             return {
                 "method": "sendMessage",
@@ -277,6 +241,6 @@ class TelegramWebhookHandler:
                 "text": response_text,
                 "reply_to_message_id": message["message_id"]
             }
-            
+
         except Exception as e:
             return {"ok": False, "error": str(e)}

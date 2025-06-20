@@ -195,3 +195,5 @@ cython_debug/
 .python-version
 uv.lock
 .aider*
+aider.conf.yml
+.DS_Store
