@@ -62,6 +62,16 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
                 bot_result = prototype.create_new_bot(bot_name, "General assistance", "helpful")
                 await update.message.reply_text(bot_result, parse_mode='Markdown')
                 print(f"✅ Created bot '{bot_name}' for user {user_id}")
+                
+                # Actually start the created bot
+                if prototype.active_created_bot:
+                    print("🚀 Starting created bot with real Telegram connection...")
+                    username = await prototype.start_created_bot(prototype.active_created_bot)
+                    if username:
+                        real_link_msg = f"🎉 **Bot is now live!**\n\nReal link: https://t.me/{username}"
+                        await update.message.reply_text(real_link_msg, parse_mode='Markdown')
+                        print(f"✅ Created bot now live at @{username}")
+                    
             else:
                 await update.message.reply_text("❌ Factory bot is not available. Please try again later.")
                 print(f"❌ Factory bot creation failed - prototype not available")
@@ -156,9 +166,19 @@ async def main():
     if prototype:
         print(f"🤖 Factory Bot: {prototype.telegram_bot.dna.name}")
         print(f"   Purpose: {prototype.telegram_bot.dna.purpose}")
+        print(f"   Token: BOT_TOKEN")
         print(f"   Platform: mini-mancer")
         print(f"   Capabilities: {[cap.value for cap in prototype.telegram_bot.dna.capabilities]}")
         print(f"   Model: agno-agi (gpt-4o-mini)")
+        print()
+        
+        if prototype.active_created_bot:
+            print(f"🔧 Created Bot: {prototype.active_created_bot.dna.name}")
+            print(f"   Purpose: {prototype.active_created_bot.dna.purpose}")
+            print(f"   Token: BOT_TOKEN_1")
+            print(f"   Status: Will start after factory bot")
+        else:
+            print("🔧 Created Bot Slot: EMPTY (BOT_TOKEN_1 available)")
     else:
         print("❌ Factory Bot: FAILED TO INITIALIZE")
     

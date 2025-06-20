@@ -52,10 +52,18 @@ class PrototypeAgent:
             description="OpenServ + Telegram + Agno-AGI Integration"
         )
         
-        # Get bot token from environment
-        bot_token = os.getenv("TEST_BOT_TOKEN")
-        if not bot_token:
-            raise ValueError("TEST_BOT_TOKEN environment variable required")
+        # Get bot tokens from environment
+        self.factory_token = os.getenv("BOT_TOKEN") or os.getenv("TEST_BOT_TOKEN")
+        self.created_bot_token = os.getenv("BOT_TOKEN_1")
+        
+        if not self.factory_token:
+            raise ValueError("BOT_TOKEN or TEST_BOT_TOKEN environment variable required")
+        if not self.created_bot_token:
+            raise ValueError("BOT_TOKEN_1 environment variable required for created bots")
+        
+        # Track the currently active created bot
+        self.active_created_bot: TelegramBotTemplate | None = None
+        self.created_bot_application = None
         
         # Create agent DNA for a helpful assistant
         agent_dna = TELEGRAM_BOT_TEMPLATE.instantiate({
@@ -88,11 +96,11 @@ class PrototypeAgent:
         # Add bot creation tool
         self._register_bot_creation_tool()
         
-        # Initialize Telegram bot using existing template
+        # Initialize factory Telegram bot using existing template
         self.telegram_bot = TelegramBotTemplate(
             agent_dna=agent_dna,
             model="gpt-4o-mini",
-            bot_token=bot_token
+            bot_token=self.factory_token
         )
         
         # Initialize Telegram webhook handler
@@ -148,22 +156,27 @@ class PrototypeAgent:
             # For now, simulate bot creation (in real implementation, this would create actual bot)
             bot_username = bot_name.lower().replace(" ", "_") + "_bot"
             
-            # Create the bot instance (simplified for prototype)
+            # Create the bot instance with BOT_TOKEN_1
             new_bot = TelegramBotTemplate(
                 agent_dna=new_bot_dna,
-                bot_token=self.telegram_bot.bot_token  # Using same token for demo
+                bot_token=self.created_bot_token
             )
+            
+            # Store the active created bot
+            self.active_created_bot = new_bot
             
             # Log the new bot creation
             print(f"\n🔧 New Bot Created:")
             print(f"   Name: {bot_name}")
             print(f"   Purpose: {bot_purpose}")
             print(f"   Personality: {personality_trait.value}")
-            print(f"   Username: {bot_username}")
             print(f"   Capabilities: {[cap.value for cap in new_bot_dna.capabilities]}")
             print(f"   Platform: {new_bot_dna.target_platform.value}")
+            print(f"   Token: BOT_TOKEN_1")
             print()
             
+            # Note: Actual bot starting will be handled in main.py
+            # For now, return placeholder username
             return f"""
 ✅ **Bot Created Successfully!**
 
@@ -172,11 +185,73 @@ class PrototypeAgent:
 😊 **Personality:** {personality_trait.value}
 🔗 **Link:** https://t.me/{bot_username}
 
-Your new bot is ready to use! Users can start chatting with it using the link above.
+Your new bot will be deployed shortly! The link will be active once deployment completes.
             """.strip()
             
         except Exception as e:
             return f"❌ Error creating bot: {str(e)}"
+    
+    async def start_created_bot(self, bot_template: TelegramBotTemplate) -> str:
+        """Start the created bot with actual Telegram polling"""
+        from telegram.ext import Application, CommandHandler, MessageHandler, filters
+        
+        try:
+            # Stop previous bot if exists
+            await self.stop_created_bot()
+            
+            # Create Telegram application for the created bot
+            self.created_bot_application = Application.builder().token(self.created_bot_token).build()
+            
+            # Add handlers for the created bot
+            async def created_bot_start(update, context):
+                response = await bot_template.handle_message({
+                    "from": {"id": update.effective_user.id, "username": update.effective_user.username},
+                    "chat": {"id": update.effective_chat.id},
+                    "text": "/start",
+                    "message_id": update.message.message_id
+                })
+                await update.message.reply_text(response)
+            
+            async def created_bot_message(update, context):
+                response = await bot_template.handle_message({
+                    "from": {"id": update.effective_user.id, "username": update.effective_user.username},
+                    "chat": {"id": update.effective_chat.id},
+                    "text": update.message.text,
+                    "message_id": update.message.message_id
+                })
+                await update.message.reply_text(response)
+            
+            self.created_bot_application.add_handler(CommandHandler("start", created_bot_start))
+            self.created_bot_application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, created_bot_message))
+            
+            # Start the bot
+            await self.created_bot_application.initialize()
+            await self.created_bot_application.start()
+            await self.created_bot_application.updater.start_polling()
+            
+            # Get bot info
+            bot_info = await self.created_bot_application.bot.get_me()
+            
+            print(f"🤖 Created Bot Started: @{bot_info.username}")
+            return bot_info.username
+            
+        except Exception as e:
+            print(f"❌ Error starting created bot: {e}")
+            return ""
+    
+    async def stop_created_bot(self):
+        """Stop the currently running created bot"""
+        if self.created_bot_application:
+            try:
+                await self.created_bot_application.updater.stop()
+                await self.created_bot_application.stop()
+                await self.created_bot_application.shutdown()
+                print("🛑 Previous created bot stopped")
+            except Exception as e:
+                print(f"❌ Error stopping created bot: {e}")
+            finally:
+                self.created_bot_application = None
+                self.active_created_bot = None
     
     def _setup_routes(self):
         """Setup FastAPI routes with proper path separation"""
