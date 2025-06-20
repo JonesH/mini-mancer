@@ -154,6 +154,16 @@ class PrototypeAgent:
                 bot_token=self.telegram_bot.bot_token  # Using same token for demo
             )
             
+            # Log the new bot creation
+            print(f"\n🔧 New Bot Created:")
+            print(f"   Name: {bot_name}")
+            print(f"   Purpose: {bot_purpose}")
+            print(f"   Personality: {personality_trait.value}")
+            print(f"   Username: {bot_username}")
+            print(f"   Capabilities: {[cap.value for cap in new_bot_dna.capabilities]}")
+            print(f"   Platform: {new_bot_dna.target_platform.value}")
+            print()
+            
             return f"""
 ✅ **Bot Created Successfully!**
 
@@ -282,8 +292,16 @@ Your new bot is ready to use! Users can start chatting with it using the link ab
 
 
 # Create global prototype instance
-prototype = PrototypeAgent()
-app = prototype.app
+try:
+    prototype = PrototypeAgent()
+    app = prototype.app
+    print("🏭 Prototype agent initialized successfully")
+except Exception as e:
+    print(f"❌ Error initializing prototype agent: {e}")
+    # Create minimal fallback app
+    from fastapi import FastAPI
+    app = FastAPI(title="Mini-Mancer (Error State)")
+    prototype = None
 
 
 # For development/testing
