@@ -1,18 +1,44 @@
 services:
-  mini-mancer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mini-mancer
-    ports:
-      - "14159:14159"
-    environment:
-      - OPENSERV_API_KEY=${OPENSERV_API_KEY}
-      - BOT_TOKEN=${BOT_TOKEN}
-      - BOT_TOKEN_1=${BOT_TOKEN_1}
-      - DEMO_USER=${DEMO_USER}
-    env_file:
-      - .env
-    restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs # Optional: mount logs directory if needed
+    postgres:
+        image: agnohq/pgvector:16
+        container_name: mini-mancer-postgres
+        environment:
+            - POSTGRES_DB=postgres
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=postgres
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    mini-mancer:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: mini-mancer
+        ports:
+            - "14159:14159"
+        environment:
+            - OPENSERV_API_KEY=${OPENSERV_API_KEY}
+            - BOT_TOKEN=${BOT_TOKEN}
+            - BOT_TOKEN_1=${BOT_TOKEN_1}
+            - BOT_MOTHER_TOKEN=${BOT_MOTHER_TOKEN}
+            - DEMO_USER=${DEMO_USER}
+            - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/postgres
+        env_file:
+            - .env
+        restart: unless-stopped
+        volumes:
+            - ./logs:/app/logs # Optional: mount logs directory if needed
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+volumes:
+    postgres_data:

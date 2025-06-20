@@ -12,14 +12,24 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # Load environment variables
 load_dotenv()
 
-# Import our prototype app and components
-from src.prototype_agent import app, prototype
+# Import our enhanced prototype app and components
+try:
+    from src.minimal_enhanced_agent import app, minimal_enhanced as prototype
+    print("✅ Using minimal enhanced agent with multi-agent system")
+except ImportError as e:
+    print(f"⚠️  Minimal enhanced not available, trying full enhanced: {e}")
+    try:
+        from src.enhanced_prototype_agent import app, enhanced_prototype as prototype
+        print("✅ Using enhanced prototype agent with full Agent API")
+    except ImportError as e2:
+        print(f"⚠️  Enhanced prototype not available, falling back to basic: {e2}")
+        from src.prototype_agent import app, prototype
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
     user_id = str(update.effective_user.id)
     chat_id = str(update.effective_chat.id)
-    
+
     print(f"📱 [FACTORY BOT] /start from user {user_id} in chat {chat_id}")
 
     await update.message.reply_text(
@@ -56,13 +66,13 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
                     if word.lower() in ["named", "called"] and i + 1 < len(words):
                         bot_name = words[i + 1].strip('"\'')
                         break
-            
+
             # Create the bot using prototype's method
             if prototype:
                 bot_result = prototype.create_new_bot(bot_name, "General assistance", "helpful")
                 await update.message.reply_text(bot_result, parse_mode='Markdown')
                 print(f"✅ [FACTORY BOT] Created bot '{bot_name}' for user {user_id}")
-                
+
                 # Actually start the created bot
                 if prototype.active_created_bot:
                     print("🚀 [FACTORY BOT] Starting created bot with real Telegram connection...")
@@ -75,7 +85,7 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
                         print(f"❌ [FACTORY BOT] Failed to start created bot")
                 else:
                     print(f"❌ [FACTORY BOT] No active created bot to start")
-                    
+
             else:
                 await update.message.reply_text("❌ Factory bot is not available. Please try again later.")
                 print(f"❌ Factory bot creation failed - prototype not available")
@@ -84,11 +94,11 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
             if prototype and prototype.agno_agent:
                 response = prototype.agno_agent.run(f"""
                 User message: {message_text}
-                
+
                 You are a factory bot that creates Telegram bots. Be helpful and ask clarifying questions if needed.
                 If they want to create a bot, guide them through the process.
                 """)
-                
+
                 await update.message.reply_text(response.content)
                 print(f"📤 [FACTORY BOT] Sent response to user {user_id}")
             else:
@@ -106,7 +116,7 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
 async def start_telegram_bot(bot_token: str):
     """Start Telegram bot with polling"""
     print("📱 Starting Telegram bot polling...")
-    
+
     # Create Telegram application
     application = Application.builder().token(bot_token).build()
     application.add_handler(CommandHandler("start", start_command))
@@ -116,7 +126,7 @@ async def start_telegram_bot(bot_token: str):
     bot_info = await application.bot.get_me()
     print(f"🤖 [FACTORY BOT] Active: {bot_info.first_name} | @{bot_info.username} | Token: {bot_token[:10]}...")
     print(f"🤖 [FACTORY BOT] Ready to receive messages and create bots")
-    
+
     # Send startup message to demo user if configured
     demo_user = os.getenv("DEMO_USER")
     if demo_user:
@@ -136,7 +146,7 @@ async def start_telegram_bot(bot_token: str):
         await application.start()
         await application.updater.start_polling()
         print("📱 Telegram bot polling started successfully")
-        
+
         # Keep running until interrupted
         try:
             await asyncio.Event().wait()
@@ -154,57 +164,71 @@ async def start_fastapi_server():
 
 async def main():
     """Main entry point - dual server setup"""
-    
+
     # Get required environment variables
-    bot_token = os.getenv("BOT_TOKEN") or os.getenv("TEST_BOT_TOKEN")
-    
+    bot_token = os.getenv("BOT_MOTHER_TOKEN") or os.getenv("BOT_TOKEN") or os.getenv("TEST_BOT_TOKEN")
+
     if not bot_token:
         raise ValueError("BOT_TOKEN or TEST_BOT_TOKEN environment variable is required")
-    
+
     print("🏭 Starting Mini-Mancer Factory Bot...")
     print(f"🤖 Bot token configured: {bot_token[:10]}...")
-    
+
     # Log all active bot identities
     print("\n📋 Bot Identity Report:")
     print("=" * 50)
-    
+
     if prototype:
-        print(f"🤖 Factory Bot: {prototype.telegram_bot.dna.name}")
-        print(f"   Purpose: {prototype.telegram_bot.dna.purpose}")
-        print(f"   Token: BOT_TOKEN")
-        print(f"   Platform: mini-mancer")
-        print(f"   Capabilities: {[cap.value for cap in prototype.telegram_bot.dna.capabilities]}")
-        print(f"   Model: agno-agi (gpt-4o-mini)")
+        # Handle different prototype structures
+        if hasattr(prototype, 'telegram_bot') and prototype.telegram_bot and hasattr(prototype.telegram_bot, 'dna'):
+            print(f"🤖 Factory Bot: {prototype.telegram_bot.dna.name}")
+            print(f"   Purpose: {prototype.telegram_bot.dna.purpose}")
+            print(f"   Token: BOT_TOKEN")
+            print(f"   Platform: mini-mancer")
+            print(f"   Capabilities: {[cap.value for cap in prototype.telegram_bot.dna.capabilities]}")
+            print(f"   Model: agno-agi (gpt-4o-mini)")
+        elif hasattr(prototype, 'multi_agent_system'):
+            print(f"🤖 Multi-Agent System: {len(prototype.multi_agent_system.agents)} agents ready")
+            print(f"   Factory Agent: Bot creation + general assistance")
+            print(f"   OpenServ Agent: Task processing")
+            print(f"   Chat Agent: General conversation")
+            print(f"   Token: BOT_TOKEN")
+            print(f"   Platform: mini-mancer-enhanced")
+        else:
+            print(f"🤖 Factory Bot: UNKNOWN STRUCTURE")
         print()
-        
-        if prototype.active_created_bot:
-            print(f"🔧 Created Bot: {prototype.active_created_bot.dna.name}")
-            print(f"   Purpose: {prototype.active_created_bot.dna.purpose}")
-            print(f"   Token: BOT_TOKEN_1")
-            print(f"   Status: Will start after factory bot")
+
+        if hasattr(prototype, 'active_created_bot') and prototype.active_created_bot:
+            if hasattr(prototype.active_created_bot, 'dna'):
+                print(f"🔧 Created Bot: {prototype.active_created_bot.dna.name}")
+                print(f"   Purpose: {prototype.active_created_bot.dna.purpose}")
+                print(f"   Token: BOT_TOKEN_1")
+                print(f"   Status: Will start after factory bot")
+            else:
+                print("🔧 Created Bot: ACTIVE (structure unknown)")
         else:
             print("🔧 Created Bot Slot: EMPTY (BOT_TOKEN_1 available)")
     else:
         print("❌ Factory Bot: FAILED TO INITIALIZE")
-    
+
     print(f"🌐 FastAPI Server: http://0.0.0.0:14159")
     print(f"   Endpoints: /telegram/webhook, /openserv/do_task, /openserv/respond_chat_message")
-    
+
     if os.getenv("OPENSERV_API_KEY"):
         print(f"🔗 OpenServ Integration: ENABLED")
         print(f"   API Key: {os.getenv('OPENSERV_API_KEY')[:10]}...")
     else:
         print("🔗 OpenServ Integration: DISABLED (fallback mode)")
-    
+
     demo_user = os.getenv("DEMO_USER")
     if demo_user:
         print(f"👤 Demo User: {demo_user}")
     else:
         print("👤 Demo User: Not configured")
-        
+
     print("=" * 50)
     print()
-    
+
     # Start both servers concurrently
     try:
         await asyncio.gather(
