@@ -204,10 +204,7 @@ Your new bot will be deployed shortly! The link will be active once deployment c
         import httpx
         
         try:
-            # Stop previous bot if exists
-            await self.stop_created_bot()
-            
-            # Store the active created bot for webhook routing
+            # Store the active created bot for webhook routing (don't stop previous to avoid webhook deletion)
             self.active_created_bot = bot_template
             
             # Set up webhook for the created bot
@@ -225,26 +222,38 @@ Your new bot will be deployed shortly! The link will be active once deployment c
                 bot_info = bot_info_response.json()["result"]
                 username = bot_info["username"]
                 
-                # Set webhook
-                webhook_response = await client.post(
-                    f"https://api.telegram.org/bot{self.created_bot_token}/setWebhook",
-                    json={
-                        "url": webhook_url,
-                        "allowed_updates": ["message"]
-                    }
+                # Check current webhook info
+                webhook_info_response = await client.get(
+                    f"https://api.telegram.org/bot{self.created_bot_token}/getWebhookInfo"
                 )
                 
-                if webhook_response.status_code != 200:
-                    raise Exception(f"Failed to set webhook: {webhook_response.text}")
+                webhook_info = webhook_info_response.json().get("result", {})
+                current_webhook_url = webhook_info.get("url", "")
                 
-                webhook_result = webhook_response.json()
-                if not webhook_result["ok"]:
-                    raise Exception(f"Webhook setup failed: {webhook_result}")
+                # Only set webhook if it's not already set to our URL
+                if current_webhook_url != webhook_url:
+                    webhook_response = await client.post(
+                        f"https://api.telegram.org/bot{self.created_bot_token}/setWebhook",
+                        json={
+                            "url": webhook_url,
+                            "allowed_updates": ["message"]
+                        }
+                    )
+                    
+                    if webhook_response.status_code != 200:
+                        raise Exception(f"Failed to set webhook: {webhook_response.text}")
+                    
+                    webhook_result = webhook_response.json()
+                    if not webhook_result["ok"]:
+                        raise Exception(f"Webhook setup failed: {webhook_result}")
+                    
+                    print(f"✅ [CREATED BOT] Webhook set successfully: @{username}")
+                    print(f"✅ [CREATED BOT] Webhook URL: {webhook_url}")
+                else:
+                    print(f"✅ [CREATED BOT] Webhook already configured: @{username}")
+                    print(f"✅ [CREATED BOT] Webhook URL: {webhook_url}")
                 
-                print(f"✅ [CREATED BOT] Webhook set successfully: @{username}")
-                print(f"✅ [CREATED BOT] Webhook URL: {webhook_url}")
                 print(f"✅ [CREATED BOT] Ready to receive webhook messages")
-                
                 return username
             
         except Exception as e:
@@ -252,7 +261,7 @@ Your new bot will be deployed shortly! The link will be active once deployment c
             return ""
     
     async def stop_created_bot(self):
-        """Stop the currently running created bot"""
+        """Stop the currently running created bot and remove webhook - only call on explicit shutdown"""
         if self.active_created_bot:
             import httpx
             try:
@@ -261,7 +270,7 @@ Your new bot will be deployed shortly! The link will be active once deployment c
                     await client.post(
                         f"https://api.telegram.org/bot{self.created_bot_token}/deleteWebhook"
                     )
-                print("🛑 Previous created bot webhook removed")
+                print("🛑 Created bot webhook removed (explicit shutdown)")
             except Exception as e:
                 print(f"❌ Error removing created bot webhook: {e}")
             finally:
