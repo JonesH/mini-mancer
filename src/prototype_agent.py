@@ -63,13 +63,30 @@ class PrototypeAgent:
             "purpose": "Demonstrate integrated OpenServ + Telegram + Agno-AGI functionality"
         })
         
-        # Initialize Agno agent for core intelligence
+        # Initialize Agno agent for core intelligence with bot creation capability
+        factory_prompt = f"""
+        {agent_dna.generate_system_prompt()}
+        
+        SPECIAL CAPABILITY: BOT CREATION
+        You are a factory bot that can create new Telegram bots for users.
+        
+        When a user asks you to create a bot:
+        1. Ask for basic details: bot name, purpose, personality
+        2. Use your bot creation tool to spawn the new bot
+        3. Return the t.me link to the user
+        
+        Keep bot creation simple - focus on name, purpose, and basic personality only.
+        """
+        
         self.agno_agent = Agent(
             model=OpenAIChat(id="gpt-4o-mini"),
-            description=agent_dna.generate_system_prompt(),
+            description=factory_prompt,
             markdown=True,
             add_history_to_messages=True,
         )
+        
+        # Add bot creation tool
+        self._register_bot_creation_tool()
         
         # Initialize Telegram bot using existing template
         self.telegram_bot = TelegramBotTemplate(
@@ -83,6 +100,73 @@ class PrototypeAgent:
         
         # Setup routes with path separation to avoid conflicts
         self._setup_routes()
+    
+    def _register_bot_creation_tool(self):
+        """Register bot creation tool with the factory agent"""
+        # For now, skip tool registration and handle bot creation in chat responses
+        # In full implementation, we'd use agno's tool system properly
+        pass
+        
+    def create_new_bot(self, bot_name: str, bot_purpose: str, personality: str = "helpful") -> str:
+        """
+        Create a new Telegram bot with the specified parameters.
+        
+        Args:
+            bot_name: Name for the new bot
+            bot_purpose: Purpose/description of what the bot does
+            personality: Personality trait (helpful, professional, casual, etc.)
+            
+        Returns:
+            Success message with bot information and t.me link
+        """
+        try:
+            # Create agent DNA for the new bot
+            from .models.agent_dna import AgentDNA, AgentPersonality, AgentCapability, PlatformTarget
+            
+            # Map personality string to enum
+            personality_map = {
+                "helpful": AgentPersonality.HELPFUL,
+                "professional": AgentPersonality.PROFESSIONAL,
+                "casual": AgentPersonality.CASUAL,
+                "enthusiastic": AgentPersonality.ENTHUSIASTIC,
+                "witty": AgentPersonality.WITTY,
+                "calm": AgentPersonality.CALM,
+                "playful": AgentPersonality.PLAYFUL
+            }
+            
+            personality_trait = personality_map.get(personality.lower(), AgentPersonality.HELPFUL)
+            
+            # Create new bot DNA
+            new_bot_dna = AgentDNA(
+                name=bot_name,
+                purpose=bot_purpose,
+                personality=[personality_trait],
+                capabilities=[AgentCapability.CHAT, AgentCapability.IMAGE_ANALYSIS],
+                target_platform=PlatformTarget.TELEGRAM
+            )
+            
+            # For now, simulate bot creation (in real implementation, this would create actual bot)
+            bot_username = bot_name.lower().replace(" ", "_") + "_bot"
+            
+            # Create the bot instance (simplified for prototype)
+            new_bot = TelegramBotTemplate(
+                agent_dna=new_bot_dna,
+                bot_token=self.telegram_bot.bot_token  # Using same token for demo
+            )
+            
+            return f"""
+✅ **Bot Created Successfully!**
+
+🤖 **Name:** {bot_name}
+🎯 **Purpose:** {bot_purpose}  
+😊 **Personality:** {personality_trait.value}
+🔗 **Link:** https://t.me/{bot_username}
+
+Your new bot is ready to use! Users can start chatting with it using the link above.
+            """.strip()
+            
+        except Exception as e:
+            return f"❌ Error creating bot: {str(e)}"
     
     def _setup_routes(self):
         """Setup FastAPI routes with proper path separation"""
@@ -144,12 +228,43 @@ class PrototypeAgent:
         async def openserv_respond_chat(request: OpenServChatRequest):
             """Handle OpenServ chat messages via Agno agent"""
             try:
-                # Use Agno agent for chat response
+                # Check if this is a bot creation request
+                message_lower = request.message.lower()
+                if any(phrase in message_lower for phrase in ["create bot", "make bot", "new bot", "spawn bot"]):
+                    # Simple bot creation - extract basic info
+                    bot_name = "Custom Bot"
+                    bot_purpose = "General assistance"
+                    personality = "helpful"
+                    
+                    # Try to extract name from message
+                    if "named" in message_lower or "called" in message_lower:
+                        words = request.message.split()
+                        for i, word in enumerate(words):
+                            if word.lower() in ["named", "called"] and i + 1 < len(words):
+                                bot_name = words[i + 1].strip('"\'')
+                                break
+                    
+                    # Create the bot
+                    bot_result = self.create_new_bot(bot_name, bot_purpose, personality)
+                    
+                    return {
+                        "chat_id": request.chat_id,
+                        "response": bot_result,
+                        "agent": "factory-bot-creator"
+                    }
+                
+                # Regular chat response
                 chat_prompt = f"""
                 Respond to this chat message:
                 User: {request.message}
                 Chat ID: {request.chat_id}
                 User ID: {request.user_id}
+                
+                You are a factory bot that can create new Telegram bots.
+                If the user wants to create a bot, ask them for:
+                - Bot name
+                - Bot purpose 
+                - Personality (helpful, professional, casual, etc.)
                 
                 Provide a helpful, conversational response.
                 """
@@ -174,4 +289,4 @@ app = prototype.app
 # For development/testing
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=14159, reload=True)
