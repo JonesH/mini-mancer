@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  mini-mancer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mini-mancer
+    ports:
+      - "14159:14159"
+    environment:
+      - OPENSERV_API_KEY=${OPENSERV_API_KEY}
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DEMO_USER=${DEMO_USER}
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs # Optional: mount logs directory if needed
