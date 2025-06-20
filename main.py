@@ -20,7 +20,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     chat_id = str(update.effective_chat.id)
     
-    print(f"📱 Telegram /start from user {user_id} in chat {chat_id}")
+    print(f"📱 [FACTORY BOT] /start from user {user_id} in chat {chat_id}")
 
     await update.message.reply_text(
         "🏭 **Mini-Mancer Factory Bot**\n\n"
@@ -42,7 +42,7 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
     chat_id = str(update.effective_chat.id)
     message_text = update.message.text
 
-    print(f"📨 Telegram message from user {user_id}: {message_text}")
+    print(f"📨 [FACTORY BOT] Message from user {user_id}: '{message_text}'")
 
     try:
         # Check if this is a bot creation request
@@ -61,16 +61,20 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
             if prototype:
                 bot_result = prototype.create_new_bot(bot_name, "General assistance", "helpful")
                 await update.message.reply_text(bot_result, parse_mode='Markdown')
-                print(f"✅ Created bot '{bot_name}' for user {user_id}")
+                print(f"✅ [FACTORY BOT] Created bot '{bot_name}' for user {user_id}")
                 
                 # Actually start the created bot
                 if prototype.active_created_bot:
-                    print("🚀 Starting created bot with real Telegram connection...")
+                    print("🚀 [FACTORY BOT] Starting created bot with real Telegram connection...")
                     username = await prototype.start_created_bot(prototype.active_created_bot)
                     if username:
                         real_link_msg = f"🎉 **Bot is now live!**\n\nReal link: https://t.me/{username}"
                         await update.message.reply_text(real_link_msg, parse_mode='Markdown')
-                        print(f"✅ Created bot now live at @{username}")
+                        print(f"✅ [FACTORY BOT] Created bot now live at @{username}")
+                    else:
+                        print(f"❌ [FACTORY BOT] Failed to start created bot")
+                else:
+                    print(f"❌ [FACTORY BOT] No active created bot to start")
                     
             else:
                 await update.message.reply_text("❌ Factory bot is not available. Please try again later.")
@@ -86,7 +90,7 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
                 """)
                 
                 await update.message.reply_text(response.content)
-                print(f"📤 Sent response to user {user_id}")
+                print(f"📤 [FACTORY BOT] Sent response to user {user_id}")
             else:
                 await update.message.reply_text(
                     "🏭 Factory bot is initializing. Please try again in a moment.\n\n"
@@ -110,7 +114,8 @@ async def start_telegram_bot(bot_token: str):
 
     # Log bot identity
     bot_info = await application.bot.get_me()
-    print(f"🤖 Factory Bot Active: {bot_info.first_name} | Telegram: @{bot_info.username} | Token: {bot_token[:10]}...")
+    print(f"🤖 [FACTORY BOT] Active: {bot_info.first_name} | @{bot_info.username} | Token: {bot_token[:10]}...")
+    print(f"🤖 [FACTORY BOT] Ready to receive messages and create bots")
     
     # Send startup message to demo user if configured
     demo_user = os.getenv("DEMO_USER")

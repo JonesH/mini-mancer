@@ -119,9 +119,13 @@ MESSAGE HANDLING:
         })
 
         try:
+            print(f"🧠 [BOT TEMPLATE] Processing message: '{text}' from user {user_id}")
+            
             # Generate response using AI agent
             result = self.agent.run(text)
             response = result.content
+            
+            print(f"🧠 [BOT TEMPLATE] Generated response: '{response[:100]}...'")
 
             # Add response to conversation history
             context.conversation_history.append({
@@ -133,6 +137,7 @@ MESSAGE HANDLING:
 
         except Exception as e:
             error_response = f"Sorry, I encountered an error: {str(e)}"
+            print(f"❌ [BOT TEMPLATE] Error processing message: {e}")
             return error_response
 
     async def handle_photo(self, photo_data: dict[str, Any]) -> str:

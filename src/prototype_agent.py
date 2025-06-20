@@ -204,35 +204,54 @@ Your new bot will be deployed shortly! The link will be active once deployment c
             
             # Add handlers for the created bot
             async def created_bot_start(update, context):
+                user_id = update.effective_user.id
+                chat_id = update.effective_chat.id
+                print(f"🤖 [CREATED BOT] /start from user {user_id} in chat {chat_id}")
+                
                 response = await bot_template.handle_message({
-                    "from": {"id": update.effective_user.id, "username": update.effective_user.username},
-                    "chat": {"id": update.effective_chat.id},
+                    "from": {"id": user_id, "username": update.effective_user.username},
+                    "chat": {"id": chat_id},
                     "text": "/start",
                     "message_id": update.message.message_id
                 })
+                
+                print(f"🤖 [CREATED BOT] Response: {response[:100]}...")
                 await update.message.reply_text(response)
+                print(f"🤖 [CREATED BOT] Message sent to user {user_id}")
             
             async def created_bot_message(update, context):
+                user_id = update.effective_user.id
+                chat_id = update.effective_chat.id
+                message_text = update.message.text
+                print(f"🤖 [CREATED BOT] Message from user {user_id}: '{message_text}'")
+                
                 response = await bot_template.handle_message({
-                    "from": {"id": update.effective_user.id, "username": update.effective_user.username},
-                    "chat": {"id": update.effective_chat.id},
-                    "text": update.message.text,
+                    "from": {"id": user_id, "username": update.effective_user.username},
+                    "chat": {"id": chat_id},
+                    "text": message_text,
                     "message_id": update.message.message_id
                 })
+                
+                print(f"🤖 [CREATED BOT] Response: {response[:100]}...")
                 await update.message.reply_text(response)
+                print(f"🤖 [CREATED BOT] Message sent to user {user_id}")
             
             self.created_bot_application.add_handler(CommandHandler("start", created_bot_start))
             self.created_bot_application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, created_bot_message))
             
             # Start the bot
+            print("🔄 [CREATED BOT] Initializing...")
             await self.created_bot_application.initialize()
+            print("🔄 [CREATED BOT] Starting...")
             await self.created_bot_application.start()
+            print("🔄 [CREATED BOT] Starting polling...")
             await self.created_bot_application.updater.start_polling()
             
             # Get bot info
             bot_info = await self.created_bot_application.bot.get_me()
             
-            print(f"🤖 Created Bot Started: @{bot_info.username}")
+            print(f"✅ [CREATED BOT] Successfully started: @{bot_info.username}")
+            print(f"✅ [CREATED BOT] Ready to receive messages")
             return bot_info.username
             
         except Exception as e:
