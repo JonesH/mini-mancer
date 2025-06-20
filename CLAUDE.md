@@ -127,4 +127,18 @@ The project currently has a minimal structure:
 ## Key Dependencies
 
 - `pydantic-ai-slim[mcp]` - The main framework dependency for AI/MCP functionality
-```
+
+## Git Guidelines
+
+### CRITICAL RULES - NEVER BREAK THESE:
+
+ • **NEVER** use `git add -A` or `git add .` - these are dangerous and can add unintended files
+ • **ALWAYS** add files explicitly by name: `git add specific_file.py`
+ • **ALWAYS** check `git status` and `git diff --staged` before committing
+ • **NEVER** commit without reviewing exactly what is being staged
+
+### Commit Message Rules:
+ • **NEVER** add "Co-Authored-By: Claude" or any AI attribution to commit messages
+ • **NEVER** add "Generated with Claude Code" to commit messages  
+ • Keep commit messages clean and professional
+ • Focus on what changed and why, not who/what wrote it

@@ -1,0 +1,41 @@
+Site: https://core.telegram.org
+Updated: June 18, 2025
+Contact: N/A (See @BotNews, @BotTalk channels)
+License: All Rights Reserved
+
+## Overview
+Official documentation for the Telegram Bot API, detailing methods, types, and concepts for building bots.
+
+## Sections
+- [Home](https://telegram.org/) — Main website for Telegram Messenger.
+- [FAQ](https://telegram.org/faq) — Frequently asked questions about Telegram Messenger.
+- [Apps](https://telegram.org/apps) — List of official and unofficial Telegram applications.
+- [API](https://core.telegram.org/api) — Overview of Telegram APIs, including Bot API and MTProto.
+- [Protocol](https://core.telegram.org/mtproto) — Documentation for the MTProto mobile protocol.
+- [Schema](https://core.telegram.org/schema) — Documentation for the MTProto API schema.
+- [Telegram Bots](https://core.telegram.org/bots) — General introduction and features of Telegram bots.
+- [API Changelog](https://core.telegram.org/bots/api-changelog) — History of changes and updates to the Bot API.
+
+## API Docs
+- https://core.telegram.org/bots/api — Detailed reference for all Bot API methods and types.
+- https://core.telegram.org/mtproto — Technical specification of the MTProto protocol.
+- https://core.telegram.org/schema — Description of the MTProto API data structure.
+
+## FAQ
+- https://telegram.org/faq — General questions about Telegram.
+- https://core.telegram.org/bots/faq — Specific questions regarding Telegram bots.
+
+## Other Resources
+- https://core.telegram.org/bots/payments — Introduction to processing payments with bots.
+- https://core.telegram.org/bots/inline — Guide to building bots with inline mode.
+- https://core.telegram.org/bots/games — Information about developing games for Telegram.
+- https://core.telegram.org/passport — Manual for integrating Telegram Passport.
+- https://core.telegram.org/widgets/login — Documentation for the Telegram Login Widget.
+- https://core.telegram.org/stickers — Guide for handling stickers and sticker sets.
+
+## Licensing
+* **Allowed-Use:** Standard web citation
+* **Disallowed-Use:** None specified
+
+## Cite-As
+> Telegram. "Bot API," 2025. https://core.telegram.org/bots/api. Accessed June 18, 2025.
