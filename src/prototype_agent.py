@@ -6,6 +6,7 @@ Leverages existing TelegramBotTemplate and AgentDNA system.
 """
 
 import os
+import re
 from typing import Any
 from datetime import datetime
 
@@ -211,16 +212,7 @@ class PrototypeAgent:
             
             # Note: Actual bot starting will be handled in main.py
             # For now, return placeholder username
-            return f"""
-✅ Bot Created Successfully!
-
-🤖 Name: {bot_name}
-🎯 Purpose: {bot_purpose}  
-😊 Personality: {personality_trait.value}
-🔗 Link: https://t.me/{bot_username}
-
-Your new bot will be deployed shortly! The link will be active once deployment completes.
-            """.strip()
+            return f"✅ <b>{bot_name}</b> created successfully!\n\n🤖 <b>Purpose:</b> {bot_purpose}\n😊 <b>Style:</b> {personality_trait.value}\n🔗 https://t.me/{bot_username}\n\nBot deploying shortly!"
             
         except Exception as e:
             return f"❌ Error creating bot: {str(e)}"
@@ -244,14 +236,7 @@ Your new bot will be deployed shortly! The link will be active once deployment c
             
             if not validation_result["valid"]:
                 issues_text = "\n".join([f"• {issue}" for issue in validation_result["issues"]])
-                return f"""
-❌ Bot Requirements Need Attention
-
-Issues found:
-{issues_text}
-
-Please provide more details before I can create your sophisticated bot.
-"""
+                return f"❌ <b>Requirements Need Work</b>\n\n{issues_text}\n\nPlease provide more details."
             
             # Generate comprehensive system prompt
             system_prompt = BotArchitect.generate_system_prompt(requirements)
@@ -279,22 +264,7 @@ Please provide more details before I can create your sophisticated bot.
                 # Store completed spec for later use
                 self.completed_bot_specs[requirements.name.lower()] = requirements
                 
-                return f"""
-🏗️ **Sophisticated Bot Compilation Initiated!**
-
-✨ **{requirements.name}** is being forged in the OpenServ workshop...
-
-📊 **Compilation Details:**
-• Quality Score: {validation_result['score']}/100 ({validation_result['quality_level']})
-• Complexity: {requirements.complexity_level.value.title()}
-• Tools: {', '.join([tool.name for tool in requirements.selected_tools])}
-• Compilation ID: {compilation_id}
-
-🔧 **Current Status:** Compiling personality matrix and tool integrations...
-⏱️ **Estimated Completion:** 2-3 minutes
-
-Your sophisticated digital companion will emerge shortly with full consciousness and capabilities!
-"""
+                return f"🏗️ <b>{requirements.name}</b> compilation started!\n\n📊 <b>Quality:</b> {validation_result['score']}/100\n🔧 <b>Status:</b> Compiling...\n⏱️ <b>ETA:</b> 2-3 minutes\n\n✨ Your digital companion will emerge shortly!"
             else:
                 # Direct creation for simpler bots
                 from .models.agent_dna import AgentDNA, AgentPersonality, AgentCapability, PlatformTarget
@@ -335,22 +305,7 @@ Your sophisticated digital companion will emerge shortly with full consciousness
                 # Store the active created bot
                 self.active_created_bot = new_bot
                 
-                return f"""
-✅ **Sophisticated Bot Created Successfully!**
-
-🤖 **{requirements.name}** has awakened with enhanced consciousness!
-
-🧠 **Personality Matrix:**
-• Core Traits: {', '.join([trait.value for trait in requirements.core_traits])}
-• Communication Style: {requirements.communication_style.value}
-• Response Style: {requirements.response_tone}
-
-🛠️ **Capabilities:**
-• Tools: {', '.join([tool.name for tool in requirements.selected_tools])}
-• Knowledge Domains: {', '.join(requirements.required_knowledge_domains) if requirements.required_knowledge_domains else 'General'}
-
-🔗 **Status:** Ready for deployment! Your sophisticated digital companion awaits.
-"""
+                return f"✅ <b>{requirements.name}</b> awakened!\n\n🧠 <b>Traits:</b> {', '.join([trait.value for trait in requirements.core_traits])}\n🛠️ <b>Tools:</b> {', '.join([tool.name for tool in requirements.selected_tools])}\n\n🔗 Ready for deployment!"
                 
         except Exception as e:
             print(f"❌ Error in advanced bot creation: {e}")
@@ -424,6 +379,194 @@ Your sophisticated digital companion will emerge shortly with full consciousness
                 self.active_created_bot = None
             except Exception as e:
                 print(f"❌ Error stopping created bot: {e}")
+    
+    def _parse_bot_creation_request(self, message: str) -> dict[str, str] | None:
+        """
+        Enhanced parsing for bot creation requests with multiple parameter extraction.
+        
+        Supports:
+        - Command format: /create_bot name="Bot Name" purpose="Description" personality="helpful"
+        - Natural language: "create a helpful bot named Assistant for customer support"
+        - Simple format: "make bot called Helper"
+        
+        Returns:
+            Dict with extracted parameters or None if not a bot creation request
+        """
+        message_lower = message.lower()
+        
+        # Check if this is a bot creation request
+        creation_keywords = ["create bot", "make bot", "new bot", "spawn bot", "/create_bot", "/create"]
+        if not any(keyword in message_lower for keyword in creation_keywords):
+            return None
+        
+        result = {}
+        
+        # Method 1: Command-style parsing with quotes
+        # /create_bot name="Bot Name" purpose="Help users" personality="professional"
+        param_patterns = {
+            'name': r'name[=:]\s*["\']([^"\']+)["\']',
+            'purpose': r'purpose[=:]\s*["\']([^"\']+)["\']',
+            'personality': r'personality[=:]\s*["\']([^"\']+)["\']'
+        }
+        
+        for param, pattern in param_patterns.items():
+            match = re.search(pattern, message, re.IGNORECASE)
+            if match:
+                result[param] = match.group(1).strip()
+        
+        # Method 2: Natural language parsing
+        if not result.get('name'):
+            # Extract name after "named", "called", "bot"
+            name_patterns = [
+                r'(?:named|called)\s+(["\']?)([A-Za-z0-9\s]+)\1',
+                r'bot\s+(["\']?)([A-Za-z0-9\s]+)\1(?:\s+for|\s+to|\s+that)',
+                r'(?:create|make)\s+(?:a\s+)?([A-Za-z0-9\s]+?)(?:\s+bot|\s+for)'
+            ]
+            
+            for pattern in name_patterns:
+                match = re.search(pattern, message, re.IGNORECASE)
+                if match:
+                    # Use group 2 if quotes were captured, otherwise group 1
+                    name = match.group(2) if len(match.groups()) > 1 and match.group(2) else match.group(1)
+                    if name and len(name.strip()) > 2:  # Valid name length
+                        result['name'] = name.strip().title()
+                        break
+        
+        # Method 3: Extract purpose from context
+        if not result.get('purpose'):
+            purpose_patterns = [
+                r'for\s+([^.!?]+)',
+                r'to\s+([^.!?]+)',
+                r'that\s+([^.!?]+)',
+                r'purpose[=:]\s*([^"\']+?)(?:\s+personality|\s*$)',
+            ]
+            
+            for pattern in purpose_patterns:
+                match = re.search(pattern, message, re.IGNORECASE)
+                if match:
+                    purpose = match.group(1).strip()
+                    if len(purpose) > 5:  # Valid purpose length
+                        result['purpose'] = purpose
+                        break
+        
+        # Method 4: Extract personality traits
+        if not result.get('personality'):
+            personality_keywords = {
+                'helpful': ['helpful', 'assistant', 'supportive', 'friendly'],
+                'professional': ['professional', 'business', 'formal', 'corporate'],
+                'casual': ['casual', 'relaxed', 'informal', 'chill'],
+                'enthusiastic': ['enthusiastic', 'energetic', 'excited', 'upbeat'],
+                'witty': ['witty', 'funny', 'humorous', 'clever'],
+                'calm': ['calm', 'patient', 'gentle', 'peaceful']
+            }
+            
+            for personality, keywords in personality_keywords.items():
+                if any(keyword in message_lower for keyword in keywords):
+                    result['personality'] = personality
+                    break
+        
+        # Return results if we found something useful
+        if result:
+            print(f"🔍 Parsed bot creation request: {result}")
+            return result
+        
+        return None
+    
+    def _generate_start_message(self) -> str:
+        """Generate a welcoming start message with creation instructions"""
+        return """🏭 <b>Welcome to BotMother Factory!</b>
+
+I'm your AI bot creation specialist. I can help you create custom Telegram bots instantly!
+
+<b>🚀 Quick Creation:</b>
+• <code>create bot named Helper for customer support</code>
+• <code>make a professional bot called Assistant</code>
+• <code>new friendly bot for answering questions</code>
+
+<b>⚙️ Advanced Creation:</b>
+• <code>/create_bot name="My Bot" purpose="Help users" personality="professional"</code>
+
+<b>🎨 Available Personalities:</b>
+• <b>Helpful</b> - Supportive and friendly
+• <b>Professional</b> - Business-focused and formal  
+• <b>Casual</b> - Relaxed and informal
+• <b>Enthusiastic</b> - Energetic and upbeat
+• <b>Witty</b> - Clever and humorous
+• <b>Calm</b> - Patient and gentle
+
+Just tell me what kind of bot you need, and I'll bring it to life! ✨"""
+    
+    def _handle_structured_commands(self, message: str) -> str | None:
+        """Handle structured bot creation commands"""
+        message_lower = message.strip().lower()
+        
+        # /start and /help commands
+        if message_lower in ['/start', '/help']:
+            return self._generate_start_message()
+        
+        # /create_quick command for fast bot creation
+        if message_lower.startswith('/create_quick'):
+            return """🚀 <b>Quick Bot Creation</b>
+
+Simply tell me:
+• <code>create helpful bot named Assistant</code>
+• <code>make professional bot called Support</code>
+• <code>new friendly bot for customer service</code>
+
+I'll create it instantly with smart defaults! ⚡"""
+        
+        # /list_personalities command
+        if message_lower in ['/list_personalities', '/personalities']:
+            return """🎭 <b>Available Bot Personalities:</b>
+
+🤝 <b>Helpful</b> - Supportive, friendly, assistant-like
+💼 <b>Professional</b> - Business-focused, formal, corporate
+😎 <b>Casual</b> - Relaxed, informal, approachable  
+🎉 <b>Enthusiastic</b> - Energetic, upbeat, exciting
+😄 <b>Witty</b> - Clever, humorous, entertaining
+🧘 <b>Calm</b> - Patient, gentle, peaceful
+
+Choose the personality that fits your bot's purpose!"""
+        
+        # /examples command
+        if message_lower in ['/examples', '/example']:
+            return """💡 <b>Bot Creation Examples:</b>
+
+<b>Natural Language:</b>
+• <code>create helpful bot named CustomerCare for support</code>
+• <code>make professional assistant called Manager</code>
+• <code>new witty bot for entertainment</code>
+
+<b>Structured Format:</b>
+• <code>/create_bot name="Sales Helper" purpose="Help with sales" personality="professional"</code>
+• <code>/create_bot name="Fun Bot" purpose="Entertainment" personality="witty"</code>
+
+<b>Quick Commands:</b>
+• <code>/create_quick</code> - Fast creation guide
+• <code>/list_personalities</code> - See all personalities
+
+Try any format - I understand them all! 🎯"""
+        
+        return None
+    
+    def _generate_quick_creation_keyboard(self) -> dict:
+        """Generate inline keyboard for quick bot creation"""
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "🤝 Create Helper Bot", "callback_data": "create_helper"},
+                    {"text": "💼 Create Support Bot", "callback_data": "create_support"}
+                ],
+                [
+                    {"text": "🎉 Create Fun Bot", "callback_data": "create_fun"},
+                    {"text": "🧘 Create Calm Bot", "callback_data": "create_calm"}
+                ],
+                [
+                    {"text": "⚙️ Custom Builder", "callback_data": "create_custom"},
+                    {"text": "📖 Examples", "callback_data": "show_examples"}
+                ]
+            ]
+        }
     
     def _setup_routes(self):
         """Setup FastAPI routes with proper path separation"""
@@ -614,29 +757,40 @@ Your sophisticated digital companion will emerge shortly with full consciousness
         @self.app.post("/openserv/respond_chat_message")
         async def openserv_respond_chat(request: OpenServChatRequest):
             """Handle OpenServ chat messages via Agno agent"""
+            # Handle structured commands first
+            command_response = self._handle_structured_commands(request.message)
+            if command_response:
+                response_data = {
+                    "chat_id": request.chat_id,
+                    "response": command_response,
+                    "agent": "factory-bot-commands",
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True
+                }
+                
+                # Add inline keyboard for start/help commands
+                if request.message.strip().lower() in ['/start', '/help']:
+                    response_data["reply_markup"] = self._generate_quick_creation_keyboard()
+                
+                return response_data
+            
             # Check if this is a bot creation request
-            message_lower = request.message.lower()
-            if any(phrase in message_lower for phrase in ["create bot", "make bot", "new bot", "spawn bot"]):
-                # Simple bot creation - extract basic info
-                bot_name = "Custom Bot"
-                bot_purpose = "General assistance"
-                personality = "helpful"
+            parsed_request = self._parse_bot_creation_request(request.message)
+            if parsed_request:
+                # Use parsed parameters or defaults
+                bot_name = parsed_request.get('name', 'Custom Bot')
+                bot_purpose = parsed_request.get('purpose', 'General assistance')
+                personality = parsed_request.get('personality', 'helpful')
                 
-                # Try to extract name from message
-                if "named" in message_lower or "called" in message_lower:
-                    words = request.message.split()
-                    for i, word in enumerate(words):
-                        if word.lower() in ["named", "called"] and i + 1 < len(words):
-                            bot_name = words[i + 1].strip('"\'')
-                            break
-                
-                # Create the bot
-                bot_result = self.create_new_bot(bot_name, bot_purpose, personality)
+                # Create the bot using instant method
+                bot_result = self.create_new_bot_instant(bot_name, bot_purpose, personality)
                 
                 return {
                     "chat_id": request.chat_id,
                     "response": bot_result,
-                    "agent": "factory-bot-creator"
+                    "agent": "factory-bot-creator",
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True
                 }
             
             # Regular chat response
@@ -660,7 +814,9 @@ Your sophisticated digital companion will emerge shortly with full consciousness
             return {
                 "chat_id": request.chat_id,
                 "response": response.content,
-                "agent": "agno-agi"
+                "agent": "agno-agi",
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True
             }
 
 

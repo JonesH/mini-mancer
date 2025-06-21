@@ -69,6 +69,9 @@ TELEGRAM PLATFORM INSTRUCTIONS:
 - Use emojis appropriately to make conversations more engaging
 - Remember conversation context between messages
 - Be responsive to user preferences and adapt your communication style
+- IMPORTANT: Keep responses under 200 words when possible
+- Use *bold* format for emphasis (not **bold**)
+- Avoid overly long explanations - be direct and helpful
 
 MESSAGE HANDLING:
 - Process text messages for conversation
@@ -125,6 +128,9 @@ MESSAGE HANDLING:
             result = self.agent.run(text)
             response = result.content
             
+            # Apply Telegram formatting fixes and length limits
+            response = self._format_for_telegram(response)
+            
             print(f"🧠 [BOT TEMPLATE] Generated response: '{response[:100]}...'")
 
             # Add response to conversation history
@@ -161,6 +167,30 @@ MESSAGE HANDLING:
 
         filename = document_data.get("file_name", "unknown file")
         return f"📎 I received your file '{filename}'. File processing would happen here in a full implementation!"
+
+    def _format_for_telegram(self, text: str) -> str:
+        """
+        Format text for proper Telegram markdown rendering and length limits.
+        
+        Args:
+            text: Raw text response
+            
+        Returns:
+            Formatted text suitable for Telegram
+        """
+        # Apply Telegram-specific markdown fixes
+        # Fix bold formatting - Telegram uses *text* for bold
+        text = text.replace("**", "*")
+        
+        # Ensure proper line spacing for readability
+        text = text.replace("\n\n\n", "\n\n")
+        
+        # Apply Telegram message length limit (4096 characters)
+        max_length = 4000  # Leave some buffer
+        if len(text) > max_length:
+            text = text[:max_length] + "...\n\n_Message truncated due to length_"
+        
+        return text
 
     def _get_or_create_context(
         self,
@@ -244,7 +274,9 @@ class TelegramWebhookHandler:
                 "method": "sendMessage",
                 "chat_id": message["chat"]["id"],
                 "text": response_text,
-                "reply_to_message_id": message["message_id"]
+                "reply_to_message_id": message["message_id"],
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True
             }
 
         except Exception as e:
