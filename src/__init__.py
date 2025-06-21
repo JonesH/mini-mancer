@@ -1,1 +1,1 @@
-# Mini-Mancer Package
+# Mini-Mancer Source Package

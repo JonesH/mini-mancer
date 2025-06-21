@@ -23,6 +23,11 @@ from .models.bot_requirements import (
     BotComplexity, AVAILABLE_TOOLS, ToolCategory
 )
 from .tools.thinking_tool import ThinkingTool, analyze_bot_requirements, think_about
+from .constants import (
+    WELCOME_MESSAGES, BOT_CREATION_MESSAGES, ERROR_MESSAGES, KEYBOARD_BUTTONS,
+    format_bot_success, format_advanced_compilation, format_advanced_success,
+    format_requirements_error, format_chat_fallback
+)
 
 # Load environment variables
 load_dotenv()
@@ -212,10 +217,10 @@ class PrototypeAgent:
             
             # Note: Actual bot starting will be handled in main.py
             # For now, return placeholder username
-            return f"✅ <b>{bot_name}</b> created successfully!\n\n🤖 <b>Purpose:</b> {bot_purpose}\n😊 <b>Style:</b> {personality_trait.value}\n🔗 https://t.me/{bot_username}\n\nBot deploying shortly!"
+            return format_bot_success(bot_name, bot_purpose, personality_trait.value, bot_username)
             
         except Exception as e:
-            return f"❌ Error creating bot: {str(e)}"
+            return ERROR_MESSAGES["bot_creation_error"].format(error=str(e))
     
     def create_new_bot_advanced(self, requirements: BotRequirements) -> str:
         """
@@ -236,7 +241,7 @@ class PrototypeAgent:
             
             if not validation_result["valid"]:
                 issues_text = "\n".join([f"• {issue}" for issue in validation_result["issues"]])
-                return f"❌ <b>Requirements Need Work</b>\n\n{issues_text}\n\nPlease provide more details."
+                return format_requirements_error(issues_text)
             
             # Generate comprehensive system prompt
             system_prompt = BotArchitect.generate_system_prompt(requirements)
@@ -264,7 +269,7 @@ class PrototypeAgent:
                 # Store completed spec for later use
                 self.completed_bot_specs[requirements.name.lower()] = requirements
                 
-                return f"🏗️ <b>{requirements.name}</b> compilation started!\n\n📊 <b>Quality:</b> {validation_result['score']}/100\n🔧 <b>Status:</b> Compiling...\n⏱️ <b>ETA:</b> 2-3 minutes\n\n✨ Your digital companion will emerge shortly!"
+                return format_advanced_compilation(requirements.name, validation_result['score'])
             else:
                 # Direct creation for simpler bots
                 from .models.agent_dna import AgentDNA, AgentPersonality, AgentCapability, PlatformTarget
@@ -305,11 +310,13 @@ class PrototypeAgent:
                 # Store the active created bot
                 self.active_created_bot = new_bot
                 
-                return f"✅ <b>{requirements.name}</b> awakened!\n\n🧠 <b>Traits:</b> {', '.join([trait.value for trait in requirements.core_traits])}\n🛠️ <b>Tools:</b> {', '.join([tool.name for tool in requirements.selected_tools])}\n\n🔗 Ready for deployment!"
+                traits = ', '.join([trait.value for trait in requirements.core_traits])
+                tools = ', '.join([tool.name for tool in requirements.selected_tools])
+                return format_advanced_success(requirements.name, traits, tools)
                 
         except Exception as e:
             print(f"❌ Error in advanced bot creation: {e}")
-            return f"❌ Error creating sophisticated bot: {str(e)}"
+            return ERROR_MESSAGES["advanced_creation_error"].format(error=str(e))
     
     async def start_created_bot(self, bot_template: TelegramBotTemplate) -> str:
         """Start the created bot with independent polling"""
@@ -474,27 +481,7 @@ class PrototypeAgent:
     
     def _generate_start_message(self) -> str:
         """Generate a welcoming start message with creation instructions"""
-        return """🏭 <b>Welcome to BotMother Factory!</b>
-
-I'm your AI bot creation specialist. I can help you create custom Telegram bots instantly!
-
-<b>🚀 Quick Creation:</b>
-• <code>create bot named Helper for customer support</code>
-• <code>make a professional bot called Assistant</code>
-• <code>new friendly bot for answering questions</code>
-
-<b>⚙️ Advanced Creation:</b>
-• <code>/create_bot name="My Bot" purpose="Help users" personality="professional"</code>
-
-<b>🎨 Available Personalities:</b>
-• <b>Helpful</b> - Supportive and friendly
-• <b>Professional</b> - Business-focused and formal  
-• <b>Casual</b> - Relaxed and informal
-• <b>Enthusiastic</b> - Energetic and upbeat
-• <b>Witty</b> - Clever and humorous
-• <b>Calm</b> - Patient and gentle
-
-Just tell me what kind of bot you need, and I'll bring it to life! ✨"""
+        return WELCOME_MESSAGES["start"]
     
     def _handle_structured_commands(self, message: str) -> str | None:
         """Handle structured bot creation commands"""
@@ -506,46 +493,15 @@ Just tell me what kind of bot you need, and I'll bring it to life! ✨"""
         
         # /create_quick command for fast bot creation
         if message_lower.startswith('/create_quick'):
-            return """🚀 <b>Quick Bot Creation</b>
-
-Simply tell me:
-• <code>create helpful bot named Assistant</code>
-• <code>make professional bot called Support</code>
-• <code>new friendly bot for customer service</code>
-
-I'll create it instantly with smart defaults! ⚡"""
+            return WELCOME_MESSAGES["quick_creation"]
         
         # /list_personalities command
         if message_lower in ['/list_personalities', '/personalities']:
-            return """🎭 <b>Available Bot Personalities:</b>
-
-🤝 <b>Helpful</b> - Supportive, friendly, assistant-like
-💼 <b>Professional</b> - Business-focused, formal, corporate
-😎 <b>Casual</b> - Relaxed, informal, approachable  
-🎉 <b>Enthusiastic</b> - Energetic, upbeat, exciting
-😄 <b>Witty</b> - Clever, humorous, entertaining
-🧘 <b>Calm</b> - Patient, gentle, peaceful
-
-Choose the personality that fits your bot's purpose!"""
+            return WELCOME_MESSAGES["personalities"]
         
         # /examples command
         if message_lower in ['/examples', '/example']:
-            return """💡 <b>Bot Creation Examples:</b>
-
-<b>Natural Language:</b>
-• <code>create helpful bot named CustomerCare for support</code>
-• <code>make professional assistant called Manager</code>
-• <code>new witty bot for entertainment</code>
-
-<b>Structured Format:</b>
-• <code>/create_bot name="Sales Helper" purpose="Help with sales" personality="professional"</code>
-• <code>/create_bot name="Fun Bot" purpose="Entertainment" personality="witty"</code>
-
-<b>Quick Commands:</b>
-• <code>/create_quick</code> - Fast creation guide
-• <code>/list_personalities</code> - See all personalities
-
-Try any format - I understand them all! 🎯"""
+            return WELCOME_MESSAGES["examples"]
         
         return None
     
@@ -554,16 +510,16 @@ Try any format - I understand them all! 🎯"""
         return {
             "inline_keyboard": [
                 [
-                    {"text": "🤝 Create Helper Bot", "callback_data": "create_helper"},
-                    {"text": "💼 Create Support Bot", "callback_data": "create_support"}
+                    {"text": KEYBOARD_BUTTONS["create_helper"], "callback_data": "create_helper"},
+                    {"text": KEYBOARD_BUTTONS["create_support"], "callback_data": "create_support"}
                 ],
                 [
-                    {"text": "🎉 Create Fun Bot", "callback_data": "create_fun"},
-                    {"text": "🧘 Create Calm Bot", "callback_data": "create_calm"}
+                    {"text": KEYBOARD_BUTTONS["create_fun"], "callback_data": "create_fun"},
+                    {"text": KEYBOARD_BUTTONS["create_calm"], "callback_data": "create_calm"}
                 ],
                 [
-                    {"text": "⚙️ Custom Builder", "callback_data": "create_custom"},
-                    {"text": "📖 Examples", "callback_data": "show_examples"}
+                    {"text": KEYBOARD_BUTTONS["custom_builder"], "callback_data": "create_custom"},
+                    {"text": KEYBOARD_BUTTONS["show_examples"], "callback_data": "show_examples"}
                 ]
             ]
         }
@@ -794,20 +750,7 @@ Try any format - I understand them all! 🎯"""
                 }
             
             # Regular chat response
-            chat_prompt = f"""
-            Respond to this chat message:
-            User: {request.message}
-            Chat ID: {request.chat_id}
-            User ID: {request.user_id}
-            
-            You are a factory bot that can create new Telegram bots.
-            If the user wants to create a bot, ask them for:
-            - Bot name
-            - Bot purpose 
-            - Personality (helpful, professional, casual, etc.)
-            
-            Provide a helpful, conversational response.
-            """
+            chat_prompt = format_chat_fallback(request.message, request.chat_id, request.user_id)
             
             response = self.agno_agent.run(chat_prompt)
             

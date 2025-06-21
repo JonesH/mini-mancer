@@ -1,6 +1,6 @@
 [project]
 name = "mini-mancer"
-version = "1.0.0-prerelease"
+version = "1.0.0a1"
 description = "Sophisticated AI Bot Creation System with OpenServ workflow integration"
 readme = "README.md"
 requires-python = ">=3.11"

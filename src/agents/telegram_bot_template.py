@@ -15,6 +15,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
 from ..models.agent_dna import AgentDNA, AgentCapability
+from ..constants import ERROR_MESSAGES, MEDIA_MESSAGES, format_photo_message, format_document_message
 
 
 class TelegramContext(BaseModel):
@@ -142,31 +143,26 @@ MESSAGE HANDLING:
             return response
 
         except Exception as e:
-            error_response = f"Sorry, I encountered an error: {str(e)}"
+            error_response = ERROR_MESSAGES["general_error"].format(error=str(e))
             print(f"❌ [BOT TEMPLATE] Error processing message: {e}")
             return error_response
 
     async def handle_photo(self, photo_data: dict[str, Any]) -> str:
         """Handle photo messages"""
         if AgentCapability.IMAGE_ANALYSIS not in self.dna.capabilities:
-            return "📷 I received your photo, but I don't have image analysis capabilities enabled."
+            return MEDIA_MESSAGES["photo_no_capability"]
 
         # In a real implementation, would download and analyze the photo
         caption = photo_data.get("caption", "")
-        response = f"📷 I can see you sent me a photo"
-        if caption:
-            response += f" with caption: '{caption}'"
-        response += ". Image analysis would happen here in a full implementation!"
-
-        return response
+        return format_photo_message(caption)
 
     async def handle_document(self, document_data: dict[str, Any]) -> str:
         """Handle document/file messages"""
         if AgentCapability.FILE_HANDLING not in self.dna.capabilities:
-            return "📎 I received your file, but I don't have file handling capabilities enabled."
+            return MEDIA_MESSAGES["document_no_capability"]
 
         filename = document_data.get("file_name", "unknown file")
-        return f"📎 I received your file '{filename}'. File processing would happen here in a full implementation!"
+        return format_document_message(filename)
 
     def _format_for_telegram(self, text: str) -> str:
         """
@@ -267,7 +263,7 @@ class TelegramWebhookHandler:
             elif "document" in message:
                 response_text = await self.bot.handle_document(message)
             else:
-                response_text = "I received your message, but I'm not sure how to handle this type of content yet."
+                response_text = ERROR_MESSAGES["unknown_content"]
 
             # Return response for Telegram API
             return {
