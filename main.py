@@ -92,16 +92,25 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
                 await update.message.reply_text(bot_result, parse_mode='Markdown')
                 print(f"✅ [FACTORY BOT] Created bot '{bot_name}' for user {user_id}")
 
-                # Actually start the created bot
-                if prototype.active_created_bot:
+                # Start the created bot with proper error handling
+                if prototype.active_created_bot and prototype.created_bot_state == "created":
                     print("🚀 [FACTORY BOT] Starting created bot with real Telegram connection...")
-                    username = await prototype.start_created_bot(prototype.active_created_bot)
-                    if username:
-                        real_link_msg = f"🎉 **Bot is now live!**\n\nReal link: https://t.me/{username}"
-                        await update.message.reply_text(real_link_msg, parse_mode='Markdown')
-                        print(f"✅ [FACTORY BOT] Created bot now live at @{username}")
-                    else:
-                        print(f"❌ [FACTORY BOT] Failed to start created bot")
+                    try:
+                        username = await prototype.start_created_bot(prototype.active_created_bot)
+                        if username and prototype.created_bot_state == "running":
+                            real_link_msg = f"🎉 **Bot is now live!**\n\nReal link: https://t.me/{username}"
+                            await update.message.reply_text(real_link_msg, parse_mode='Markdown')
+                            print(f"✅ [FACTORY BOT] Created bot now live at @{username}")
+                        else:
+                            error_msg = f"❌ **Bot creation failed**\n\nStatus: {prototype.created_bot_state}\nPlease try again."
+                            await update.message.reply_text(error_msg, parse_mode='Markdown')
+                            print(f"❌ [FACTORY BOT] Failed to start created bot, state: {prototype.created_bot_state}")
+                    except Exception as e:
+                        error_msg = f"❌ **Bot startup error**\n\n{str(e)}"
+                        await update.message.reply_text(error_msg, parse_mode='Markdown')
+                        print(f"❌ [FACTORY BOT] Exception starting created bot: {e}")
+                elif prototype.active_created_bot:
+                    print(f"❌ [FACTORY BOT] Created bot in wrong state: {prototype.created_bot_state}")
                 else:
                     print(f"❌ [FACTORY BOT] No active created bot to start")
 
@@ -205,21 +214,36 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
                     f"⚡ {bot_result}"
                 )
                 
-                # Start the created bot
-                if prototype.active_created_bot:
+                # Start the created bot with proper error handling
+                if prototype.active_created_bot and prototype.created_bot_state == "created":
                     print("🚀 [FACTORY BOT] Starting created bot with tool...")
-                    username = await prototype.start_created_bot(prototype.active_created_bot)
-                    if username:
+                    try:
+                        username = await prototype.start_created_bot(prototype.active_created_bot)
+                        if username and prototype.created_bot_state == "running":
+                            await query.message.reply_text(
+                                f"🌟 DIGITAL SOUL AWAKENED! 🌟\n\n"
+                                f"Behold! {template['name']} draws their first digital breath!\n\n"
+                                f"🔗 Sacred Portal: https://t.me/{username}\n"
+                                f"⚡ {template['tool']} is ready to serve!\n\n"
+                                f"Go forth and discover the magic of your new companion! ✨"
+                            )
+                            print(f"✅ [FACTORY BOT] {template['name']} now live at @{username}")
+                        else:
+                            await query.message.reply_text(
+                                f"❌ **{template['name']} failed to awaken**\n\n"
+                                f"Status: {prototype.created_bot_state}\n"
+                                f"The digital realm seems turbulent. Please try again."
+                            )
+                            print(f"❌ [FACTORY BOT] Failed to start {template['name']}, state: {prototype.created_bot_state}")
+                    except Exception as e:
                         await query.message.reply_text(
-                            f"🌟 DIGITAL SOUL AWAKENED! 🌟\n\n"
-                            f"Behold! {template['name']} draws their first digital breath!\n\n"
-                            f"🔗 Sacred Portal: https://t.me/{username}\n"
-                            f"⚡ {template['tool']} is ready to serve!\n\n"
-                            f"Go forth and discover the magic of your new companion! ✨"
+                            f"❌ **{template['name']} encountered an error**\n\n"
+                            f"Error: {str(e)}\n"
+                            f"Please try creating the bot again."
                         )
-                        print(f"✅ [FACTORY BOT] {template['name']} now live at @{username}")
-                    else:
-                        print(f"❌ [FACTORY BOT] Failed to start {template['name']}")
+                        print(f"❌ [FACTORY BOT] Exception starting {template['name']}: {e}")
+                elif prototype.active_created_bot:
+                    print(f"❌ [FACTORY BOT] Created bot in wrong state: {prototype.created_bot_state}")
                 else:
                     print(f"❌ [FACTORY BOT] No active created bot to start")
             else:
@@ -272,7 +296,9 @@ async def start_telegram_bot(bot_token: str):
         except KeyboardInterrupt:
             print("\n🛑 Shutting down Telegram bot...")
         finally:
+            print("🔄 Stopping Telegram application...")
             await application.stop()
+            print("✅ Telegram bot stopped")
 
 async def start_fastapi_server():
     """Start FastAPI server for OpenServ webhooks"""
@@ -352,6 +378,16 @@ async def main():
         )
     except KeyboardInterrupt:
         print("\n🛑 Shutting down all services...")
+        
+        # Gracefully shutdown the prototype agent
+        if prototype:
+            try:
+                print("🔄 Shutting down PrototypeAgent...")
+                await prototype.shutdown()
+            except Exception as e:
+                print(f"❌ Error during PrototypeAgent shutdown: {e}")
+        
+        print("✅ All services shut down successfully")
 
 def run_main():
     """Wrapper to run async main"""

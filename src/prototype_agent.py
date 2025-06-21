@@ -79,22 +79,40 @@ class PrototypeAgent:
             description="OpenServ + Telegram + Agno-AGI Integration"
         )
         
-        # Get bot tokens from environment
+        # Get bot tokens from environment with validation
         self.factory_token = os.getenv("BOT_TOKEN") or os.getenv("TEST_BOT_TOKEN")
-        self.created_bot_token = os.getenv("BOT_TOKEN_1") or self.factory_token  # Fallback to same token for testing
+        self.created_bot_token = os.getenv("BOT_TOKEN_1")
         
         if not self.factory_token:
             raise ValueError("BOT_TOKEN or TEST_BOT_TOKEN environment variable required")
         
+        # Validate token format (should start with number and contain colon)
+        if not self._is_valid_bot_token(self.factory_token):
+            raise ValueError("Invalid factory bot token format")
+        
+        # Check if we have a separate token for created bots
+        if self.created_bot_token:
+            if not self._is_valid_bot_token(self.created_bot_token):
+                raise ValueError("Invalid created bot token format (BOT_TOKEN_1)")
+            if self.created_bot_token == self.factory_token:
+                raise ValueError("BOT_TOKEN_1 cannot be the same as BOT_TOKEN")
+        else:
+            # No separate token available - created bots will be disabled
+            print("⚠️  BOT_TOKEN_1 not configured - created bots will be disabled")
+        
         # Log token status
         print(f"🔑 Factory token: {self.factory_token[:15]}...")
-        print(f"🔑 Created bot token: {self.created_bot_token[:15]}...")
-        if self.factory_token == self.created_bot_token:
-            print("⚠️  Using same token for both factory and created bot (testing mode)")
+        if self.created_bot_token:
+            print(f"🔑 Created bot token: {self.created_bot_token[:15]}...")
+            print("✅ Token validation passed - both factory and created bots enabled")
+        else:
+            print("⚠️  Created bot functionality disabled - only factory bot available")
         
-        # Track the currently active created bot
+        # Track the currently active created bot with enhanced state management
         self.active_created_bot: TelegramBotTemplate | None = None
         self.created_bot_application = None
+        self.created_bot_state: str = "none"  # none, creating, starting, running, stopping, error
+        self.created_bot_start_task = None  # Track async task for proper cleanup
         
         # Bot compilation workflow tracking
         self.bot_compilation_queue: dict[str, dict[str, Any]] = {}
@@ -138,6 +156,21 @@ class PrototypeAgent:
         # Setup routes with path separation to avoid conflicts
         self._setup_routes()
     
+    def _is_valid_bot_token(self, token: str) -> bool:
+        """Validate bot token format (should be like 123456:ABC-DEF...)"""
+        if not token or len(token) < 10:
+            return False
+        parts = token.split(":")
+        if len(parts) != 2:
+            return False
+        # First part should be numeric (bot ID)
+        if not parts[0].isdigit():
+            return False
+        # Second part should be the token hash (at least 5 chars)
+        if len(parts[1]) < 5:
+            return False
+        return True
+    
     def _register_bot_creation_tool(self):
         """Register bot creation and thinking tools with the factory agent"""
         # Register thinking capabilities
@@ -168,6 +201,22 @@ class PrototypeAgent:
             Success message with bot information and t.me link
         """
         try:
+            # Check if bot creation is available
+            if not self.created_bot_token:
+                return ERROR_MESSAGES["bot_creation_disabled"]
+            
+            # Check if another bot is already active
+            if self.created_bot_state in ["creating", "starting", "running"]:
+                return ERROR_MESSAGES["bot_already_exists"]
+            
+            # Validate inputs
+            if not bot_name or len(bot_name.strip()) < 2:
+                return ERROR_MESSAGES["invalid_bot_name"]
+            if not bot_purpose or len(bot_purpose.strip()) < 5:
+                return ERROR_MESSAGES["invalid_bot_purpose"]
+            
+            # Set state to creating
+            self.created_bot_state = "creating"
             # Create agent DNA for the new bot
             from .models.agent_dna import AgentDNA, AgentPersonality, AgentCapability, PlatformTarget
             
@@ -204,6 +253,7 @@ class PrototypeAgent:
             
             # Store the active created bot
             self.active_created_bot = new_bot
+            self.created_bot_state = "created"  # Successfully created, ready to start
             
             # Log the new bot creation
             print(f"\n🔧 New Bot Created:")
@@ -220,6 +270,10 @@ class PrototypeAgent:
             return format_bot_success(bot_name, bot_purpose, personality_trait.value, bot_username)
             
         except Exception as e:
+            # Reset state on error
+            self.created_bot_state = "error"
+            self.active_created_bot = None
+            print(f"❌ Bot creation failed: {e}")
             return ERROR_MESSAGES["bot_creation_error"].format(error=str(e))
     
     def create_new_bot_advanced(self, requirements: BotRequirements) -> str:
@@ -319,16 +373,27 @@ class PrototypeAgent:
             return ERROR_MESSAGES["advanced_creation_error"].format(error=str(e))
     
     async def start_created_bot(self, bot_template: TelegramBotTemplate) -> str:
-        """Start the created bot with independent polling"""
+        """Start the created bot with proper lifecycle management"""
         from telegram.ext import Application, MessageHandler, filters
         import asyncio
         
         try:
-            # Store the active created bot
-            self.active_created_bot = bot_template
+            # Validate state before starting
+            if self.created_bot_state not in ["created", "error"]:
+                print(f"❌ Cannot start bot in state: {self.created_bot_state}")
+                return ""
+            
+            if not self.created_bot_token:
+                print("❌ No created bot token available")
+                return ""
+            
+            # Update state to starting
+            self.created_bot_state = "starting"
+            print(f"🚀 Starting created bot...")
             
             # Create independent Telegram application for created bot
             application = Application.builder().token(self.created_bot_token).build()
+            self.created_bot_application = application
             
             # Add message handler that uses the bot template
             async def handle_created_bot_message(update, context):
@@ -389,41 +454,154 @@ class PrototypeAgent:
             application.add_handler(MessageHandler(filters.PHOTO, handle_created_bot_photo))
             application.add_handler(MessageHandler(filters.DOCUMENT, handle_created_bot_document))
             
-            # Get bot info
-            bot_info = await application.bot.get_me()
-            username = bot_info.username
-            print(f"🤖 [CREATED BOT] Starting: {bot_info.first_name} | @{username} | Token: {self.created_bot_token[:10]}...")
+            # Get bot info to validate token works
+            try:
+                bot_info = await application.bot.get_me()
+                username = bot_info.username
+                print(f"🤖 [CREATED BOT] Validated: {bot_info.first_name} | @{username}")
+            except Exception as e:
+                self.created_bot_state = "error"
+                print(f"❌ Failed to validate created bot token: {e}")
+                return ""
             
-            # Start polling in background task
-            async def start_polling():
+            # Start polling as a managed background task
+            async def managed_polling():
                 try:
+                    self.created_bot_state = "running"
+                    print(f"📱 [CREATED BOT] @{username} starting polling...")
+                    
                     async with application:
                         await application.start()
                         await application.updater.start_polling()
-                        print(f"📱 [CREATED BOT] @{username} polling started successfully")
+                        print(f"✅ [CREATED BOT] @{username} is now live and polling!")
                         
-                        # Keep running until stopped
-                        await asyncio.Event().wait()
+                        # Keep running until the state changes or we're interrupted
+                        while self.created_bot_state == "running":
+                            await asyncio.sleep(1)
+                        
+                        print(f"🛑 [CREATED BOT] @{username} stopping polling...")
+                        await application.stop()
+                        
                 except Exception as e:
+                    self.created_bot_state = "error"
                     print(f"❌ [CREATED BOT] Polling error for @{username}: {e}")
+                finally:
+                    if self.created_bot_state == "running":
+                        self.created_bot_state = "stopped"
+                    print(f"🏁 [CREATED BOT] @{username} polling ended")
             
-            # Start polling as background task (don't await)
-            asyncio.create_task(start_polling())
+            # Store the task for cleanup
+            self.created_bot_start_task = asyncio.create_task(managed_polling())
             
-            return username
+            # Wait a moment to ensure it starts properly
+            await asyncio.sleep(0.5)
+            
+            if self.created_bot_state == "running":
+                return username
+            else:
+                print(f"❌ Bot failed to start properly, state: {self.created_bot_state}")
+                return ""
             
         except Exception as e:
+            self.created_bot_state = "error"
             print(f"❌ Error starting created bot: {e}")
             return ""
     
-    def stop_created_bot(self):
-        """Stop the currently running created bot"""
-        if self.active_created_bot:
-            try:
-                print("🛑 Created bot stopped")
-                self.active_created_bot = None
-            except Exception as e:
-                print(f"❌ Error stopping created bot: {e}")
+    async def stop_created_bot(self) -> str:
+        """Stop the currently running created bot with proper cleanup"""
+        try:
+            if self.created_bot_state == "none":
+                return ERROR_MESSAGES["no_bot_to_stop"]
+            
+            if self.created_bot_state not in ["running", "starting", "error"]:
+                print(f"⚠️ Bot is in {self.created_bot_state} state, attempting to stop...")
+            
+            # Set state to stopping
+            old_state = self.created_bot_state
+            self.created_bot_state = "stopping"
+            
+            print(f"🛑 Stopping created bot (was {old_state})...")
+            
+            # Cancel the polling task if it exists
+            if self.created_bot_start_task and not self.created_bot_start_task.done():
+                print("🔄 Cancelling bot polling task...")
+                self.created_bot_start_task.cancel()
+                try:
+                    await self.created_bot_start_task
+                except asyncio.CancelledError:
+                    print("✅ Bot polling task cancelled")
+                except Exception as e:
+                    print(f"⚠️ Error during task cancellation: {e}")
+            
+            # Stop the application if it exists
+            if self.created_bot_application:
+                try:
+                    print("🔄 Stopping Telegram application...")
+                    await self.created_bot_application.stop()
+                    print("✅ Telegram application stopped")
+                except Exception as e:
+                    print(f"⚠️ Error stopping application: {e}")
+            
+            # Clean up resources
+            self.active_created_bot = None
+            self.created_bot_application = None
+            self.created_bot_start_task = None
+            self.created_bot_state = "none"
+            
+            print("✅ Created bot stopped and resources cleaned up")
+            return "✅ Bot stopped successfully"
+            
+        except Exception as e:
+            print(f"❌ Error stopping created bot: {e}")
+            # Force cleanup even if there were errors
+            self.active_created_bot = None
+            self.created_bot_application = None
+            self.created_bot_start_task = None
+            self.created_bot_state = "error"
+            return ERROR_MESSAGES["bot_start_failed"].format(error=str(e))
+    
+    async def shutdown(self):
+        """Graceful shutdown of all bot resources"""
+        print("🛑 PrototypeAgent shutdown initiated...")
+        
+        try:
+            # Stop any running created bots
+            if self.created_bot_state in ["running", "starting"]:
+                print("🔄 Stopping created bot...")
+                await self.stop_created_bot()
+            
+            # Shutdown factory bot resources
+            if hasattr(self, 'telegram_bot') and self.telegram_bot:
+                print("🔄 Shutting down factory bot...")
+                await self.telegram_bot.shutdown()
+            
+            # Clear all queues and data
+            self.bot_compilation_queue.clear()
+            self.completed_bot_specs.clear()
+            
+            print("✅ PrototypeAgent shutdown complete")
+            
+        except Exception as e:
+            print(f"❌ Error during PrototypeAgent shutdown: {e}")
+    
+    def get_status_summary(self) -> dict[str, Any]:
+        """Get comprehensive status of all bot systems"""
+        return {
+            "factory_bot": {
+                "status": "running" if hasattr(self, 'telegram_bot') else "inactive",
+                "token_configured": bool(self.factory_token)
+            },
+            "created_bot": {
+                "status": self.created_bot_state,
+                "token_configured": bool(self.created_bot_token),
+                "active_bot": self.active_created_bot.dna.name if self.active_created_bot else None
+            },
+            "resources": {
+                "compilation_queue_size": len(self.bot_compilation_queue),
+                "completed_specs": len(self.completed_bot_specs),
+                "active_polling_task": bool(self.created_bot_start_task and not self.created_bot_start_task.done())
+            }
+        }
     
     def _parse_bot_creation_request(self, message: str) -> dict[str, str] | None:
         """
@@ -696,7 +874,9 @@ class PrototypeAgent:
         
         @self.app.get("/health")
         async def health_check():
-            """Health check endpoint for OpenServ -> Mini-Mancer testing"""
+            """Enhanced health check endpoint with comprehensive status"""
+            status_summary = self.get_status_summary()
+            
             return {
                 "status": "healthy",
                 "service": "mini-mancer",
@@ -708,9 +888,10 @@ class PrototypeAgent:
                     "telegram_polling",
                     "openserv_api"
                 ],
+                "detailed_status": status_summary,
                 "active_bots": {
-                    "factory_bot": "running",
-                    "created_bot": "active" if self.active_created_bot else "none"
+                    "factory_bot": status_summary["factory_bot"]["status"],
+                    "created_bot": status_summary["created_bot"]["status"]
                 }
             }
         

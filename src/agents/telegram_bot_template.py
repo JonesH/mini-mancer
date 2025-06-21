@@ -125,9 +125,27 @@ MESSAGE HANDLING:
         try:
             print(f"🧠 [BOT TEMPLATE] Processing message: '{text}' from user {user_id}")
             
-            # Generate response using AI agent
-            result = self.agent.run(text)
-            response = result.content
+            # Validate input
+            if not text or len(text.strip()) == 0:
+                return ERROR_MESSAGES["empty_message"]
+            
+            if len(text) > 4000:  # Telegram message limit
+                text = text[:4000] + "..."
+                print("⚠️ [BOT TEMPLATE] Message truncated due to length")
+            
+            # Generate response using AI agent with timeout
+            try:
+                result = self.agent.run(text)
+                if not result or not hasattr(result, 'content'):
+                    raise ValueError("Invalid response from AI agent")
+                response = result.content
+            except Exception as ai_error:
+                print(f"❌ [BOT TEMPLATE] AI agent error: {ai_error}")
+                return ERROR_MESSAGES["ai_error"]
+            
+            # Validate response
+            if not response or len(response.strip()) == 0:
+                return ERROR_MESSAGES["empty_response"]
             
             # Apply Telegram formatting fixes and length limits
             response = self._format_for_telegram(response)
@@ -145,6 +163,13 @@ MESSAGE HANDLING:
         except Exception as e:
             error_response = ERROR_MESSAGES["general_error"].format(error=str(e))
             print(f"❌ [BOT TEMPLATE] Error processing message: {e}")
+            
+            # Add error to conversation history for debugging
+            context.conversation_history.append({
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e)
+            })
+            
             return error_response
 
     async def handle_photo(self, photo_data: dict[str, Any]) -> str:

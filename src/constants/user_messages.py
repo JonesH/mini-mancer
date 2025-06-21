@@ -68,7 +68,16 @@ ERROR_MESSAGES = {
     "bot_creation_error": "❌ Error creating bot: {error}",
     "advanced_creation_error": "❌ Error creating sophisticated bot: {error}",
     "general_error": "Sorry, I encountered an error: {error}",
-    "unknown_content": "I received your message, but I'm not sure how to handle this type of content yet."
+    "unknown_content": "I received your message, but I'm not sure how to handle this type of content yet.",
+    "bot_creation_disabled": "❌ Bot creation is currently disabled. BOT_TOKEN_1 is not configured.",
+    "invalid_bot_name": "❌ Bot name must be at least 2 characters long.",
+    "invalid_bot_purpose": "❌ Bot purpose must be at least 5 characters long.",
+    "bot_start_failed": "❌ Failed to start bot: {error}",
+    "bot_already_exists": "⚠️ A bot is already running. Stop the current bot first.",
+    "no_bot_to_stop": "❌ No bot is currently running to stop.",
+    "empty_message": "❌ Cannot process empty messages.",
+    "ai_error": "❌ AI processing temporarily unavailable. Please try again.",
+    "empty_response": "❌ AI generated an empty response. Please try again."
 }
 
 # File and media handling messages
