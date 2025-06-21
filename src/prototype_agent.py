@@ -349,7 +349,45 @@ class PrototypeAgent:
                     print(f"❌ [CREATED BOT] Error handling message: {e}")
                     await update.message.reply_text("Sorry, I encountered an error processing your message.")
             
+            # Add handlers for different message types
+            async def handle_created_bot_photo(update, context):
+                """Handle photo messages for the created bot"""
+                try:
+                    user_id = str(update.effective_user.id)
+                    print(f"📸 [CREATED BOT] Photo from user {user_id}")
+                    
+                    # Use bot template to handle photo
+                    response_text = await bot_template.handle_photo(update.message.to_dict())
+                    
+                    # Send response
+                    await update.message.reply_text(response_text)
+                    print(f"📤 [CREATED BOT] Sent photo response to user {user_id}")
+                    
+                except Exception as e:
+                    print(f"❌ [CREATED BOT] Error handling photo: {e}")
+                    await update.message.reply_text("Sorry, I had trouble processing your photo.")
+            
+            async def handle_created_bot_document(update, context):
+                """Handle document messages for the created bot"""
+                try:
+                    user_id = str(update.effective_user.id)
+                    print(f"📎 [CREATED BOT] Document from user {user_id}")
+                    
+                    # Use bot template to handle document
+                    response_text = await bot_template.handle_document(update.message.to_dict())
+                    
+                    # Send response
+                    await update.message.reply_text(response_text)
+                    print(f"📤 [CREATED BOT] Sent document response to user {user_id}")
+                    
+                except Exception as e:
+                    print(f"❌ [CREATED BOT] Error handling document: {e}")
+                    await update.message.reply_text("Sorry, I had trouble processing your file.")
+            
+            # Register all handlers
             application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_created_bot_message))
+            application.add_handler(MessageHandler(filters.PHOTO, handle_created_bot_photo))
+            application.add_handler(MessageHandler(filters.DOCUMENT, handle_created_bot_document))
             
             # Get bot info
             bot_info = await application.bot.get_me()
