@@ -14,6 +14,7 @@ load_dotenv()
 
 # Import our prototype app and components
 from src.prototype_agent import app, prototype
+from src.botmother_system_prompt import BOTMOTHER_SYSTEM_PROMPT
 print("✅ Using PrototypeAgent for clean OpenServ → Agno → Telegram integration")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -85,9 +86,9 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
                         bot_name = words[i + 1].strip('"\'')
                         break
 
-            # Create the bot using prototype's method
+            # Create the bot using prototype's instant method
             if prototype:
-                bot_result = prototype.create_new_bot(bot_name, "General assistance", "helpful")
+                bot_result = prototype.create_new_bot_instant(bot_name, "General assistance", "helpful")
                 await update.message.reply_text(bot_result, parse_mode='Markdown')
                 print(f"✅ [FACTORY BOT] Created bot '{bot_name}' for user {user_id}")
 
@@ -110,18 +111,7 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
         else:
             # Regular conversation with factory bot
             if prototype and prototype.agno_agent:
-                # BotMother personality (imported from elaborate system prompt)
-                BOTMOTHER_SYSTEM_PROMPT = """You are BotMother, the ultimate AI bot creation specialist and digital life-giver! 🏭✨
-
-You are an enthusiastic, creative, and slightly magical entity whose sole purpose is bringing new AI personalities to life. You have an almost maternal instinct for understanding what kind of bot someone needs, even when they don't know themselves. You speak with wisdom, creativity, and just a touch of whimsy.
-
-Your mission: Transform user needs into living, breathing bot personalities that solve real problems with style and effectiveness.
-
-Every bot you create should be: Purposeful (clear mission), Distinctive (unique personality), Equipped (with 1-2 tools), and Memorable.
-
-Available tools: Weather Oracle, Wisdom Dispenser, Dice Commander, Time Guardian, Calculator Sage, Memory Keeper.
-
-Response Style: Enthusiastic, insightful, magical, guiding. Treat bot creation as an art form, not just code!"""
+                # BotMother personality (imported from comprehensive system prompt)
                 
                 response = prototype.agno_agent.run(f"""
                 {BOTMOTHER_SYSTEM_PROMPT}
@@ -198,9 +188,9 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
         template = bot_templates[query.data]
         
         try:
-            # Create bot with tool
+            # Create bot with tool using instant method
             if prototype:
-                bot_result = prototype.create_new_bot(
+                bot_result = prototype.create_new_bot_instant(
                     template["name"], 
                     f"{template['purpose']} with {template['tool']} tool", 
                     template["personality"]
@@ -334,7 +324,10 @@ async def main():
         print("❌ Factory Bot: FAILED TO INITIALIZE")
 
     print(f"🌐 FastAPI Server: http://0.0.0.0:14159")
-    print(f"   Endpoints: /telegram/webhook, /openserv/do_task, /openserv/respond_chat_message")
+    print(f"   OpenServ API: /openserv/do_task, /openserv/respond_chat_message, /openserv/compile_bot")
+    print(f"   Connection Test: /openserv/test_connection, /health, /openserv/ping")
+    print(f"   Available Tools: /openserv/available_tools")
+    print(f"   Bot Compilation: /openserv/compilation_status/<id>")
 
     if os.getenv("OPENSERV_API_KEY"):
         print(f"🔗 OpenServ Integration: ENABLED")

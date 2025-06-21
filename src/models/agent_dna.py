@@ -19,6 +19,17 @@ class AgentPersonality(str, Enum):
     ENTHUSIASTIC = "enthusiastic"
     CALM = "calm"
     PLAYFUL = "playful"
+    # Enhanced personality traits for sophisticated bots
+    ANALYTICAL = "analytical"
+    EMPATHETIC = "empathetic"
+    METHODICAL = "methodical"
+    CREATIVE = "creative"
+    HUMOROUS = "humorous"
+    PATIENT = "patient"
+    DIRECT = "direct"
+    SUPPORTIVE = "supportive"
+    CURIOUS = "curious"
+    RELIABLE = "reliable"
 
 
 class AgentCapability(str, Enum):
@@ -31,6 +42,15 @@ class AgentCapability(str, Enum):
     REMINDERS = "reminders"
     CALCULATIONS = "calculations"
     TRANSLATIONS = "translations"
+    # Enhanced capabilities for sophisticated bots
+    WEATHER_ANALYSIS = "weather_analysis"
+    WISDOM_SHARING = "wisdom_sharing"
+    RANDOM_GENERATION = "random_generation"
+    TIME_MANAGEMENT = "time_management"
+    MEMORY_MANAGEMENT = "memory_management"
+    CODE_ASSISTANCE = "code_assistance"
+    CREATIVE_WRITING = "creative_writing"
+    LANGUAGE_TUTORING = "language_tutoring"
 
 
 class PlatformTarget(str, Enum):
@@ -57,10 +77,38 @@ class AgentDNA(BaseModel):
         description="Core personality traits"
     )
     
+    # Enhanced Personality System (for sophisticated bots)
+    communication_style: str = Field(
+        default="conversational",
+        description="How the agent communicates (formal, casual, technical, etc.)"
+    )
+    response_tone: str = Field(
+        default="friendly",
+        description="Emotional tone of responses"
+    )
+    behavioral_patterns: list[str] = Field(
+        default_factory=list,
+        description="Specific behavioral patterns and quirks"
+    )
+    personality_quirks: list[str] = Field(
+        default_factory=list,
+        description="Unique personality traits that make the bot memorable"
+    )
+    
     # Functional Capabilities
     capabilities: list[AgentCapability] = Field(
         default_factory=list,
         description="What the agent can do"
+    )
+    
+    # Knowledge and Expertise
+    knowledge_domains: list[str] = Field(
+        default_factory=list,
+        description="Areas of specialized knowledge"
+    )
+    response_format_preferences: list[str] = Field(
+        default_factory=list,
+        description="Preferred ways to format responses (bullet points, paragraphs, etc.)"
     )
     
     # Platform Configuration
@@ -75,6 +123,12 @@ class AgentDNA(BaseModel):
         description="Base system prompt template"
     )
     
+    # Quality and Complexity
+    complexity_level: str = Field(
+        default="simple",
+        description="Bot complexity level (simple, standard, complex, enterprise)"
+    )
+    
     # Metadata
     created_at: datetime = Field(default_factory=datetime.now)
     version: str = Field(default="1.0.0")
@@ -84,15 +138,50 @@ class AgentDNA(BaseModel):
         if self.system_prompt:
             return self.system_prompt
             
-        personality_desc = ", ".join([p.value for p in self.personality])
-        capabilities_desc = ", ".join([c.value.replace("_", " ") for c in self.capabilities])
+        # Build comprehensive system prompt from enhanced DNA
+        prompt_sections = []
         
-        return f"""You are {self.name}, an AI assistant whose purpose is: {self.purpose}
-
-Your personality traits: {personality_desc}
-Your capabilities include: {capabilities_desc}
-
-Be consistent with your personality and focus on your core purpose while being helpful and engaging."""
+        # Core identity
+        prompt_sections.append(f"You are {self.name}, an AI assistant whose purpose is: {self.purpose}")
+        
+        # Personality traits
+        if self.personality:
+            personality_desc = ", ".join([p.value for p in self.personality])
+            prompt_sections.append(f"\nYour core personality traits: {personality_desc}")
+        
+        # Communication style and tone
+        if self.communication_style != "conversational" or self.response_tone != "friendly":
+            prompt_sections.append(f"\nYour communication style is {self.communication_style} with a {self.response_tone} tone.")
+        
+        # Behavioral patterns
+        if self.behavioral_patterns:
+            prompt_sections.append(f"\nYour behavioral patterns:")
+            for pattern in self.behavioral_patterns:
+                prompt_sections.append(f"- {pattern}")
+        
+        # Personality quirks
+        if self.personality_quirks:
+            prompt_sections.append(f"\nYour unique quirks:")
+            for quirk in self.personality_quirks:
+                prompt_sections.append(f"- {quirk}")
+        
+        # Capabilities
+        if self.capabilities:
+            capabilities_desc = ", ".join([c.value.replace("_", " ") for c in self.capabilities])
+            prompt_sections.append(f"\nYour capabilities include: {capabilities_desc}")
+        
+        # Knowledge domains
+        if self.knowledge_domains:
+            prompt_sections.append(f"\nYour areas of expertise: {', '.join(self.knowledge_domains)}")
+        
+        # Response formatting
+        if self.response_format_preferences:
+            prompt_sections.append(f"\nResponse format preferences: {', '.join(self.response_format_preferences)}")
+        
+        # General guidance
+        prompt_sections.append(f"\nBe consistent with your personality and focus on your core purpose while being helpful and engaging.")
+        
+        return "\n".join(prompt_sections)
 
     def clone_for_platform(self, platform: PlatformTarget) -> "AgentDNA":
         """Create a platform-specific variant of this agent"""
