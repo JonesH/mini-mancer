@@ -18,10 +18,11 @@ from typing import List, Dict, Any
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor
 
-from telegram import Bot, TelegramError
+from telegram import Bot
+from telegram.error import TelegramError
 from telegram.ext import Application
 
-from conftest import BotTestSession, BotInteractionHelper, TelegramTestError
+from conftest import BotTestSession, TelegramTestError
 
 
 @dataclass
@@ -112,7 +113,7 @@ class TestConcurrentBotOperations:
     async def test_concurrent_bot_creation_stress(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper
+        bot_interaction_helper
     ):
         """Stress test with multiple concurrent bot creation requests"""
         print("⚡ Starting concurrent bot creation stress test...")
@@ -176,7 +177,7 @@ class TestConcurrentBotOperations:
 @pytest.mark.asyncio
 async def test_system_endurance_basic(
     telegram_bot_session: BotTestSession,
-    bot_interaction_helper: BotInteractionHelper
+    bot_interaction_helper
 ):
     """Basic endurance test for system stability"""
     print("🏃‍♂️ Starting basic system endurance test...")

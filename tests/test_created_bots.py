@@ -15,7 +15,8 @@ import re
 from typing import Any, Dict
 from dataclasses import dataclass
 
-from telegram import Bot, TelegramError
+from telegram import Bot
+from telegram.error import TelegramError
 from telegram.ext import Application
 
 from conftest import BotTestSession, TelegramTestError

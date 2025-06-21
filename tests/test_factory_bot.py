@@ -17,7 +17,7 @@ from telegram import Update, Message, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
 from conftest import (
-    BotTestSession, BotInteractionHelper, TelegramTestError,
+    BotTestSession, TelegramTestError,
     bot_creation_test_case, inline_keyboard_test_case
 )
 
@@ -31,7 +31,7 @@ class TestFactoryBotCreation:
     async def test_factory_bot_start_command(
         self, 
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper
+        bot_interaction_helper
     ):
         """Test /start command returns proper welcome with inline keyboard"""
         print("🚀 Testing factory bot /start command...")
@@ -51,7 +51,7 @@ class TestFactoryBotCreation:
     async def test_text_based_bot_creation(
         self,
         telegram_bot_session: BotTestSession, 
-        bot_interaction_helper: BotInteractionHelper,
+        bot_interaction_helper,
         bot_creation_test_case,
         performance_monitor
     ):
@@ -91,7 +91,7 @@ class TestFactoryBotCreation:
     async def test_inline_keyboard_bot_creation(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper, 
+        bot_interaction_helper, 
         inline_keyboard_test_case,
         performance_monitor
     ):
@@ -117,7 +117,7 @@ class TestFactoryBotCreation:
     async def test_bot_name_extraction(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper
+        bot_interaction_helper
     ):
         """Test proper extraction of bot names from creation requests"""
         test_cases = [
@@ -152,7 +152,7 @@ class TestFactoryBotErrorHandling:
     async def test_invalid_bot_creation_requests(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper
+        bot_interaction_helper
     ):
         """Test handling of invalid bot creation requests"""
         invalid_requests = [
@@ -183,7 +183,7 @@ class TestFactoryBotErrorHandling:
     async def test_concurrent_bot_creation_requests(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper,
+        bot_interaction_helper,
         performance_monitor
     ):
         """Test handling of multiple simultaneous bot creation requests"""
@@ -224,7 +224,7 @@ class TestFactoryBotErrorHandling:
     async def test_rate_limiting_behavior(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper
+        bot_interaction_helper
     ):
         """Test factory bot behavior under rapid message sending"""
         print("⚡ Testing rate limiting behavior...")
@@ -345,7 +345,7 @@ class TestFactoryBotIntegration:
 @pytest.mark.asyncio
 async def test_factory_bot_endurance(
     telegram_bot_session: BotTestSession,
-    bot_interaction_helper: BotInteractionHelper,
+    bot_interaction_helper,
     performance_monitor
 ):
     """Long-running endurance test for factory bot stability"""

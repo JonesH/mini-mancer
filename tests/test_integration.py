@@ -14,10 +14,11 @@ import pytest
 import time
 from typing import Dict, Any
 
-from telegram import Bot, TelegramError
+from telegram import Bot
+from telegram.error import TelegramError
 from telegram.ext import Application
 
-from conftest import BotTestSession, BotInteractionHelper, TelegramTestError
+from conftest import BotTestSession, TelegramTestError
 
 
 @pytest.mark.integration
@@ -29,7 +30,7 @@ class TestEndToEndBotWorkflows:
     async def test_complete_bot_lifecycle(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper,
+        bot_interaction_helper,
         prototype_agent_instance,
         performance_monitor
     ):
@@ -101,7 +102,7 @@ class TestEndToEndBotWorkflows:
     async def test_factory_to_created_bot_handoff(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper
+        bot_interaction_helper
     ):
         """Test handoff from factory bot to created bot"""
         print("🤝 Testing factory to created bot handoff...")
@@ -126,7 +127,7 @@ class TestEndToEndBotWorkflows:
     async def test_multiple_bot_creation_sequence(
         self,
         telegram_bot_session: BotTestSession,
-        bot_interaction_helper: BotInteractionHelper,
+        bot_interaction_helper,
         performance_monitor
     ):
         """Test creating multiple bots in sequence"""
@@ -239,7 +240,7 @@ class TestAPIIntegration:
 @pytest.mark.asyncio
 async def test_system_resilience_and_recovery(
     telegram_bot_session: BotTestSession,
-    bot_interaction_helper: BotInteractionHelper,
+    bot_interaction_helper,
     prototype_agent_instance
 ):
     """Test system resilience and error recovery"""
@@ -312,7 +313,7 @@ async def test_system_resilience_and_recovery(
 @pytest.mark.asyncio
 async def test_comprehensive_system_validation(
     telegram_bot_session: BotTestSession,
-    bot_interaction_helper: BotInteractionHelper,
+    bot_interaction_helper,
     prototype_agent_instance,
     performance_monitor
 ):

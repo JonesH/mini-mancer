@@ -57,8 +57,8 @@ class TelegramTestError(Exception):
     pass
 
 
-@pytest_asyncio.fixture(scope="session")
-async def bot_test_config():
+@pytest.fixture(scope="function")
+def bot_test_config():
     """Session-wide configuration for bot testing"""
     factory_token = os.getenv("BOT_TOKEN") or os.getenv("TEST_BOT_TOKEN")
     created_token = os.getenv("BOT_TOKEN_1")
@@ -81,7 +81,7 @@ async def bot_test_config():
     }
 
 
-@pytest_asyncio.fixture(scope="session") 
+@pytest_asyncio.fixture(scope="function") 
 async def telegram_bot_session(bot_test_config) -> AsyncGenerator[BotTestSession, None]:
     """Create and manage a Telegram bot testing session"""
     factory_bot = Bot(token=bot_test_config["factory_token"])
