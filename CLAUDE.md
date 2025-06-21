@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mini-mancer is a Python project that uses `pydantic-ai-slim[mcp]` as its main dependency. The project uses uv for dependency management and virtual environment handling.
+Mini-mancer is a Python project that uses `agno` as its main AI agent framework, integrating OpenServ → Agno → Telegram for bot creation and deployment. The project uses uv for dependency management and virtual environment handling.
 
 ## Development Environment
 
@@ -119,14 +119,19 @@ uv run python main.py
 
 ## Project Structure
 
-The project currently has a minimal structure:
-- `main.py` - Entry point with a simple `main()` function
+- `main.py` - Entry point with dual Telegram + FastAPI servers
+- `src/prototype_agent.py` - Core PrototypeAgent integrating all systems
+- `src/agents/telegram_bot_template.py` - Telegram bot wrapper
+- `src/models/agent_dna.py` - Agent DNA and template system
 - `pyproject.toml` - Project configuration and dependencies
-- `uv.lock` - Locked dependency versions
+- `docker-compose.yaml` - PostgreSQL + app containerization
 
 ## Key Dependencies
 
-- `pydantic-ai-slim[mcp]` - The main framework dependency for AI/MCP functionality
+- `agno` - The main AI agent framework for intelligent bot creation
+- `fastapi` - Web framework for OpenServ integration endpoints
+- `python-telegram-bot` - Telegram bot API integration
+- `psycopg[binary]` - PostgreSQL database connectivity
 
 ## Git Guidelines
 

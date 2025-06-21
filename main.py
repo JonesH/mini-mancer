@@ -6,24 +6,15 @@ import os
 import asyncio
 import uvicorn
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 # Load environment variables
 load_dotenv()
 
-# Import our enhanced prototype app and components
-try:
-    from src.minimal_enhanced_agent import app, minimal_enhanced as prototype
-    print("✅ Using minimal enhanced agent with multi-agent system")
-except ImportError as e:
-    print(f"⚠️  Minimal enhanced not available, trying full enhanced: {e}")
-    try:
-        from src.enhanced_prototype_agent import app, enhanced_prototype as prototype
-        print("✅ Using enhanced prototype agent with full Agent API")
-    except ImportError as e2:
-        print(f"⚠️  Enhanced prototype not available, falling back to basic: {e2}")
-        from src.prototype_agent import app, prototype
+# Import our prototype app and components
+from src.prototype_agent import app, prototype
+print("✅ Using PrototypeAgent for clean OpenServ → Agno → Telegram integration")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
@@ -32,19 +23,46 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     print(f"📱 [FACTORY BOT] /start from user {user_id} in chat {chat_id}")
 
-    await update.message.reply_text(
-        "🏭 **Mini-Mancer Factory Bot**\n\n"
-        "I'm your AI bot creation assistant! I can help you create custom Telegram bots.\n\n"
-        "🤖 **What I can do:**\n"
-        "• Create new Telegram bots with custom personalities\n"
-        "• Generate bot specifications and deploy them\n"
-        "• Provide bot links for immediate use\n\n"
-        "💬 **Examples:**\n"
-        "• \"Create a study helper bot\"\n"
-        "• \"Make a customer service bot named SupportBot\"\n"
-        "• \"I need a helpful assistant bot\"\n\n"
-        "What kind of bot would you like me to create?"
-    )
+    # Quick bot creation buttons for debugging
+    keyboard = [
+        [
+            InlineKeyboardButton("🤖 Helpful Assistant", callback_data="create_helpful"),
+            InlineKeyboardButton("😤 Stubborn Bot", callback_data="create_stubborn")
+        ],
+        [
+            InlineKeyboardButton("🎮 Gaming Bot + Dice Tool", callback_data="create_gaming"),
+            InlineKeyboardButton("📚 Study Helper + Timer Tool", callback_data="create_study")
+        ],
+        [
+            InlineKeyboardButton("💼 Support + Ticket Tool", callback_data="create_support"),
+            InlineKeyboardButton("🎭 Random Bot + Cool Tool", callback_data="create_random")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    try:
+        await update.message.reply_text(
+            "🏭 Mini-Mancer Factory Bot\n\n"
+            "I'm your AI bot creation assistant! I can help you create custom Telegram bots.\n\n"
+            "🚀 Quick Create (for debugging):\n"
+            "Use the buttons below for instant bot creation with tools, or send a message like:\n\n"
+            "💬 Examples:\n"
+            "• \"Create a study helper bot\"\n"
+            "• \"Make a customer service bot named SupportBot\"\n"
+            "• \"I need a helpful assistant bot\"\n\n"
+            "Choose a bot type or describe your own:",
+            reply_markup=reply_markup
+        )
+        print(f"✅ [FACTORY BOT] Sent start message with buttons to user {user_id}")
+    except Exception as e:
+        print(f"❌ [FACTORY BOT] Error sending start message: {e}")
+        # Fallback without buttons
+        await update.message.reply_text(
+            "🏭 Mini-Mancer Factory Bot\n\n"
+            "I'm your AI bot creation assistant! Send me a message like:\n"
+            "• \"Create a study helper bot\"\n"
+            "• \"Make a customer service bot named SupportBot\""
+        )
 
 async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming Telegram messages"""
@@ -57,7 +75,7 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
     try:
         # Check if this is a bot creation request
         message_lower = message_text.lower()
-        if any(phrase in message_lower for phrase in ["create bot", "make bot", "new bot", "spawn bot"]):
+        if any(phrase in message_lower for phrase in ["create", "make bot", "new bot", "spawn bot"]) and "bot" in message_lower:
             # Extract bot name
             bot_name = "Custom Bot"
             if "named" in message_lower or "called" in message_lower:
@@ -92,19 +110,34 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
         else:
             # Regular conversation with factory bot
             if prototype and prototype.agno_agent:
-                response = prototype.agno_agent.run(f"""
-                User message: {message_text}
+                # BotMother personality (imported from elaborate system prompt)
+                BOTMOTHER_SYSTEM_PROMPT = """You are BotMother, the ultimate AI bot creation specialist and digital life-giver! 🏭✨
 
-                You are a factory bot that creates Telegram bots. Be helpful and ask clarifying questions if needed.
-                If they want to create a bot, guide them through the process.
+You are an enthusiastic, creative, and slightly magical entity whose sole purpose is bringing new AI personalities to life. You have an almost maternal instinct for understanding what kind of bot someone needs, even when they don't know themselves. You speak with wisdom, creativity, and just a touch of whimsy.
+
+Your mission: Transform user needs into living, breathing bot personalities that solve real problems with style and effectiveness.
+
+Every bot you create should be: Purposeful (clear mission), Distinctive (unique personality), Equipped (with 1-2 tools), and Memorable.
+
+Available tools: Weather Oracle, Wisdom Dispenser, Dice Commander, Time Guardian, Calculator Sage, Memory Keeper.
+
+Response Style: Enthusiastic, insightful, magical, guiding. Treat bot creation as an art form, not just code!"""
+                
+                response = prototype.agno_agent.run(f"""
+                {BOTMOTHER_SYSTEM_PROMPT}
+                
+                User message: {message_text}
+                
+                Respond as BotMother with enthusiasm and creativity. If they're asking about bot creation,
+                guide them or suggest using the quick creation buttons they can access with /start.
                 """)
 
                 await update.message.reply_text(response.content)
                 print(f"📤 [FACTORY BOT] Sent response to user {user_id}")
             else:
                 await update.message.reply_text(
-                    "🏭 Factory bot is initializing. Please try again in a moment.\n\n"
-                    "If this persists, the bot may be in maintenance mode."
+                    "🏭 BotMother is awakening... Please try again in a moment.\n\n"
+                    "If this persists, the digital realm may be in maintenance mode."
                 )
                 print(f"❌ Factory bot response failed - prototype not available")
 
@@ -113,6 +146,101 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
         print(f"❌ Error handling Telegram message: {e}")
         await update.message.reply_text(error_msg)
 
+async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle inline button callbacks for quick bot creation"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = str(query.from_user.id)
+    print(f"🔘 [FACTORY BOT] Button callback from user {user_id}: {query.data}")
+    
+    # Define bot templates with tools
+    bot_templates = {
+        "create_helpful": {
+            "name": "HelpfulBot",
+            "purpose": "General helpful assistance", 
+            "personality": "friendly and helpful",
+            "tool": "web search"
+        },
+        "create_stubborn": {
+            "name": "StubbornBot",
+            "purpose": "Disagreeable entertainment bot",
+            "personality": "stubborn and always disagrees for humor",
+            "tool": "argument counter"
+        },
+        "create_gaming": {
+            "name": "GamerBot", 
+            "purpose": "Gaming assistance and entertainment",
+            "personality": "enthusiastic gamer",
+            "tool": "dice roller"
+        },
+        "create_study": {
+            "name": "StudyBot",
+            "purpose": "Study assistance and learning support", 
+            "personality": "encouraging and educational",
+            "tool": "pomodoro timer"
+        },
+        "create_support": {
+            "name": "SupportBot",
+            "purpose": "Customer service and support",
+            "personality": "professional and solution-focused", 
+            "tool": "ticket tracker"
+        },
+        "create_random": {
+            "name": f"CosmicSage{user_id[-3:]}",
+            "purpose": "Mystical wisdom and random insights", 
+            "personality": "enigmatic cosmic oracle who speaks in riddles and sees patterns in chaos",
+            "tool": "wisdom dispenser"
+        }
+    }
+    
+    if query.data in bot_templates:
+        template = bot_templates[query.data]
+        
+        try:
+            # Create bot with tool
+            if prototype:
+                bot_result = prototype.create_new_bot(
+                    template["name"], 
+                    f"{template['purpose']} with {template['tool']} tool", 
+                    template["personality"]
+                )
+                
+                await query.edit_message_text(
+                    f"✨ DIGITAL BIRTH IN PROGRESS ✨\n\n"
+                    f"🤖 {template['name']} is awakening...\n\n"
+                    f"🎯 Purpose: {template['purpose']}\n"
+                    f"🎭 Soul: {template['personality']}\n" 
+                    f"🛠️ Sacred Tool: {template['tool']}\n\n"
+                    f"⚡ {bot_result}"
+                )
+                
+                # Start the created bot
+                if prototype.active_created_bot:
+                    print("🚀 [FACTORY BOT] Starting created bot with tool...")
+                    username = await prototype.start_created_bot(prototype.active_created_bot)
+                    if username:
+                        await query.message.reply_text(
+                            f"🌟 DIGITAL SOUL AWAKENED! 🌟\n\n"
+                            f"Behold! {template['name']} draws their first digital breath!\n\n"
+                            f"🔗 Sacred Portal: https://t.me/{username}\n"
+                            f"⚡ {template['tool']} is ready to serve!\n\n"
+                            f"Go forth and discover the magic of your new companion! ✨"
+                        )
+                        print(f"✅ [FACTORY BOT] {template['name']} now live at @{username}")
+                    else:
+                        print(f"❌ [FACTORY BOT] Failed to start {template['name']}")
+                else:
+                    print(f"❌ [FACTORY BOT] No active created bot to start")
+            else:
+                await query.edit_message_text("❌ Factory bot is not available. Please try again later.")
+                
+        except Exception as e:
+            print(f"❌ Error in button callback: {e}")
+            await query.edit_message_text(f"❌ Error creating bot: {str(e)}")
+    else:
+        await query.edit_message_text("❌ Unknown button pressed.")
+
 async def start_telegram_bot(bot_token: str):
     """Start Telegram bot with polling"""
     print("📱 Starting Telegram bot polling...")
@@ -120,6 +248,7 @@ async def start_telegram_bot(bot_token: str):
     # Create Telegram application
     application = Application.builder().token(bot_token).build()
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CallbackQueryHandler(handle_button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_telegram_message))
 
     # Log bot identity
@@ -179,23 +308,16 @@ async def main():
     print("=" * 50)
 
     if prototype:
-        # Handle different prototype structures
+        # PrototypeAgent structure
         if hasattr(prototype, 'telegram_bot') and prototype.telegram_bot and hasattr(prototype.telegram_bot, 'dna'):
             print(f"🤖 Factory Bot: {prototype.telegram_bot.dna.name}")
             print(f"   Purpose: {prototype.telegram_bot.dna.purpose}")
             print(f"   Token: BOT_TOKEN")
-            print(f"   Platform: mini-mancer")
+            print(f"   Platform: mini-mancer-prototype")
             print(f"   Capabilities: {[cap.value for cap in prototype.telegram_bot.dna.capabilities]}")
             print(f"   Model: agno-agi (gpt-4o-mini)")
-        elif hasattr(prototype, 'multi_agent_system'):
-            print(f"🤖 Multi-Agent System: {len(prototype.multi_agent_system.agents)} agents ready")
-            print(f"   Factory Agent: Bot creation + general assistance")
-            print(f"   OpenServ Agent: Task processing")
-            print(f"   Chat Agent: General conversation")
-            print(f"   Token: BOT_TOKEN")
-            print(f"   Platform: mini-mancer-enhanced")
         else:
-            print(f"🤖 Factory Bot: UNKNOWN STRUCTURE")
+            print(f"🤖 Factory Bot: PrototypeAgent ready")
         print()
 
         if hasattr(prototype, 'active_created_bot') and prototype.active_created_bot:
