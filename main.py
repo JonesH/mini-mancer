@@ -32,7 +32,12 @@ setup_telegram_error_logging()
 from src.prototype_agent import app, prototype
 from src.botmother_system_prompt import BOTMOTHER_SYSTEM_PROMPT
 from src.utils import safe_telegram_operation, ErrorContext, log_error_with_context
+from src.telegram_rate_limiter import rate_limited_call
+from src.test_monitor import log_bot_message, log_ai_response
 logger.info("✅ Using PrototypeAgent for clean OpenServ → Agno → Telegram integration")
+
+# Global bot token for rate limiting
+FACTORY_BOT_TOKEN = None
 
 @safe_telegram_operation("start_command", "Sorry, I couldn't process your /start command. Please try again.")
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -59,17 +64,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        "🏭 Mini-Mancer Factory Bot\n\n"
-        "I'm your AI bot creation assistant! I can help you create custom Telegram bots.\n\n"
-        "🚀 Quick Create (for debugging):\n"
-        "Use the buttons below for instant bot creation with tools, or send a message like:\n\n"
-        "💬 Examples:\n"
-        "• \"Create a study helper bot\"\n"
-        "• \"Make a customer service bot named SupportBot\"\n"
-        "• \"I need a helpful assistant bot\"\n\n"
-        "Choose a bot type or describe your own:",
-        reply_markup=reply_markup
+    await rate_limited_call(
+        FACTORY_BOT_TOKEN,
+        update.message.reply_text(
+            "🏭 Mini-Mancer Factory Bot\n\n"
+            "I'm your AI bot creation assistant! I can help you create custom Telegram bots.\n\n"
+            "🚀 Quick Create (for debugging):\n"
+            "Use the buttons below for instant bot creation with tools, or send a message like:\n\n"
+            "💬 Examples:\n"
+            "• \"Create a study helper bot\"\n"
+            "• \"Make a customer service bot named SupportBot\"\n"
+            "• \"I need a helpful assistant bot\"\n\n"
+            "Choose a bot type or describe your own:",
+            reply_markup=reply_markup
+        )
     )
     logger.info(f"✅ [FACTORY BOT] Sent start message with buttons to user {user_id}")
 
@@ -96,12 +104,12 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
 
         # Create the bot using prototype's instant method
         if not prototype:
-            await update.message.reply_text("❌ Factory bot is not available. Please try again later.")
+            await rate_limited_call(FACTORY_BOT_TOKEN, update.message.reply_text("❌ Factory bot is not available. Please try again later."))
             logger.error(f"❌ Factory bot creation failed - prototype not available")
             return
 
         bot_result = prototype.create_new_bot_instant(bot_name, "General assistance", "helpful")
-        await update.message.reply_text(bot_result, parse_mode='Markdown')
+        await rate_limited_call(FACTORY_BOT_TOKEN, update.message.reply_text(bot_result, parse_mode='Markdown'))
         logger.info(f"✅ [FACTORY BOT] Created bot '{bot_name}' for user {user_id}")
 
         # Start the created bot with proper error handling
@@ -110,11 +118,11 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
             username = await prototype.start_created_bot(prototype.active_created_bot)
             if username and prototype.created_bot_state == "running":
                 real_link_msg = f"🎉 **Bot is now live!**\n\nReal link: https://t.me/{username}"
-                await update.message.reply_text(real_link_msg, parse_mode='Markdown')
+                await rate_limited_call(FACTORY_BOT_TOKEN, update.message.reply_text(real_link_msg, parse_mode='Markdown'))
                 logger.info(f"✅ [FACTORY BOT] Created bot now live at @{username}")
             else:
                 error_msg = f"❌ **Bot creation failed**\n\nStatus: {prototype.created_bot_state}\nPlease try again."
-                await update.message.reply_text(error_msg, parse_mode='Markdown')
+                await rate_limited_call(FACTORY_BOT_TOKEN, update.message.reply_text(error_msg, parse_mode='Markdown'))
                 logger.error(f"❌ [FACTORY BOT] Failed to start created bot, state: {prototype.created_bot_state}")
         elif prototype.active_created_bot:
             logger.error(f"❌ [FACTORY BOT] Created bot in wrong state: {prototype.created_bot_state}")
@@ -123,24 +131,32 @@ async def handle_telegram_message(update: Update, context: ContextTypes.DEFAULT_
     else:
         # Regular conversation with factory bot
         if not prototype or not prototype.agno_agent:
-            await update.message.reply_text(
+            await rate_limited_call(FACTORY_BOT_TOKEN, update.message.reply_text(
                 "🏭 BotMother is awakening... Please try again in a moment.\n\n"
                 "If this persists, the digital realm may be in maintenance mode."
-            )
+            ))
             logger.error(f"❌ Factory bot response failed - prototype not available")
             return
 
         # BotMother personality (imported from comprehensive system prompt)
-        response = prototype.agno_agent.run(f"""
+        prompt = f"""
         {BOTMOTHER_SYSTEM_PROMPT}
         
         User message: {message_text}
         
         Respond as BotMother with enthusiasm and creativity. If they're asking about bot creation,
         guide them or suggest using the quick creation buttons they can access with /start.
-        """)
+        """
+        response = prototype.agno_agent.run(prompt)
 
-        await update.message.reply_text(response.content)
+        # Log AI interaction for monitoring
+        try:
+            await log_ai_response(prompt, response.content, FACTORY_BOT_TOKEN)
+            await log_bot_message(response.content, FACTORY_BOT_TOKEN, user_id, chat_id)
+        except Exception:
+            pass  # Monitoring not critical
+
+        await rate_limited_call(FACTORY_BOT_TOKEN, update.message.reply_text(response.content))
         logger.info(f"📤 [FACTORY BOT] Sent response to user {user_id}")
 
 @safe_telegram_operation("handle_button_callback", "Sorry, I couldn't process that button. Please try again.")
@@ -197,7 +213,7 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
         
         # Create bot with tool using instant method
         if not prototype:
-            await query.edit_message_text("❌ Factory bot is not available. Please try again later.")
+            await rate_limited_call(FACTORY_BOT_TOKEN, query.edit_message_text("❌ Factory bot is not available. Please try again later."))
             return
             
         bot_result = prototype.create_new_bot_instant(
@@ -206,44 +222,46 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             template["personality"]
         )
         
-        await query.edit_message_text(
+        await rate_limited_call(FACTORY_BOT_TOKEN, query.edit_message_text(
             f"✨ DIGITAL BIRTH IN PROGRESS ✨\n\n"
             f"🤖 {template['name']} is awakening...\n\n"
             f"🎯 Purpose: {template['purpose']}\n"
             f"🎭 Soul: {template['personality']}\n" 
             f"🛠️ Sacred Tool: {template['tool']}\n\n"
             f"⚡ {bot_result}"
-        )
+        ))
         
         # Start the created bot with proper error handling
         if prototype.active_created_bot and prototype.created_bot_state == "created":
             logger.info("🚀 [FACTORY BOT] Starting created bot with tool...")
             username = await prototype.start_created_bot(prototype.active_created_bot)
             if username and prototype.created_bot_state == "running":
-                await query.message.reply_text(
+                await rate_limited_call(FACTORY_BOT_TOKEN, query.message.reply_text(
                     f"🌟 DIGITAL SOUL AWAKENED! 🌟\n\n"
                     f"Behold! {template['name']} draws their first digital breath!\n\n"
                     f"🔗 Sacred Portal: https://t.me/{username}\n"
                     f"⚡ {template['tool']} is ready to serve!\n\n"
                     f"Go forth and discover the magic of your new companion! ✨"
-                )
+                ))
                 logger.info(f"✅ [FACTORY BOT] {template['name']} now live at @{username}")
             else:
-                await query.message.reply_text(
+                await rate_limited_call(FACTORY_BOT_TOKEN, query.message.reply_text(
                     f"❌ **{template['name']} failed to awaken**\n\n"
                     f"Status: {prototype.created_bot_state}\n"
                     f"The digital realm seems turbulent. Please try again."
-                )
+                ))
                 logger.error(f"❌ [FACTORY BOT] Failed to start {template['name']}, state: {prototype.created_bot_state}")
         elif prototype.active_created_bot:
             logger.error(f"❌ [FACTORY BOT] Created bot in wrong state: {prototype.created_bot_state}")
         else:
             logger.error(f"❌ [FACTORY BOT] No active created bot to start")
     else:
-        await query.edit_message_text("❌ Unknown button pressed.")
+        await rate_limited_call(FACTORY_BOT_TOKEN, query.edit_message_text("❌ Unknown button pressed."))
 
 async def start_telegram_bot(bot_token: str):
     """Start Telegram bot with polling"""
+    global FACTORY_BOT_TOKEN
+    FACTORY_BOT_TOKEN = bot_token
     logger.info("📱 Starting Telegram bot polling...")
 
     # Create Telegram application
@@ -260,11 +278,14 @@ async def start_telegram_bot(bot_token: str):
     # Send startup message to demo user if configured  
     demo_user = os.getenv("DEMO_USER")
     if demo_user:
-        await application.bot.send_message(
-            chat_id=demo_user,
-            text="🏭 **Mini-Mancer Factory Bot is now online!**\n\n"
-                 "I'm ready to create custom Telegram bots for you. "
-                 "Send me a message to get started!"
+        await rate_limited_call(
+            bot_token,
+            application.bot.send_message(
+                chat_id=demo_user,
+                text="🏭 **Mini-Mancer Factory Bot is now online!**\n\n"
+                     "I'm ready to create custom Telegram bots for you. "
+                     "Send me a message to get started!"
+            )
         )
         logger.info(f"✅ Startup notification sent to DEMO_USER: {demo_user}")
 

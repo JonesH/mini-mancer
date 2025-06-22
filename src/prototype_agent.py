@@ -11,7 +11,8 @@ import logging
 from typing import Any
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -38,6 +39,9 @@ logger = logging.getLogger(__name__)
 
 # Import error handling utilities
 from .utils import safe_telegram_operation, ErrorContext, log_error_with_context
+
+# Import test monitoring
+from .test_monitor import monitor, get_dashboard_html
 
 
 
@@ -917,6 +921,12 @@ class PrototypeAgent:
             
             response = self.agno_agent.run(task_prompt)
             
+            # Log AI response for monitoring
+            try:
+                await monitor.log_ai_response(task_prompt, response.content, "openserv")
+            except Exception:
+                pass  # Monitoring not critical
+            
             return {
                 "task_id": request.task_id,
                 "status": "completed",
@@ -968,6 +978,12 @@ class PrototypeAgent:
             
             response = self.agno_agent.run(chat_prompt)
             
+            # Log AI response for monitoring
+            try:
+                await monitor.log_ai_response(chat_prompt, response.content, "factory_bot")
+            except Exception:
+                pass  # Monitoring not critical
+            
             return {
                 "chat_id": request.chat_id,
                 "response": response.content,
@@ -975,6 +991,33 @@ class PrototypeAgent:
                 "parse_mode": "HTML",
                 "disable_web_page_preview": True
             }
+        
+        # Test Monitoring Endpoints
+        @self.app.get("/test-monitor", response_class=HTMLResponse)
+        async def test_monitor_dashboard():
+            """Serve the test monitoring dashboard"""
+            return get_dashboard_html()
+        
+        @self.app.websocket("/test-monitor/ws")
+        async def test_monitor_websocket(websocket: WebSocket):
+            """WebSocket endpoint for real-time test monitoring"""
+            await monitor.connect_websocket(websocket)
+            try:
+                while True:
+                    # Keep connection alive, events are broadcasted automatically
+                    await websocket.receive_text()
+            except WebSocketDisconnect:
+                monitor.disconnect_websocket(websocket)
+        
+        @self.app.get("/test-monitor/events")
+        async def get_test_events(limit: int = 100, event_type: str = None):
+            """Get recent test events"""
+            return monitor.get_events(limit=limit, event_type=event_type)
+        
+        @self.app.get("/test-monitor/stats")
+        async def get_test_stats():
+            """Get test monitoring statistics"""
+            return monitor.get_stats()
 
 
 # Create global prototype instance

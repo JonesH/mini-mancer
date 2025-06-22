@@ -104,6 +104,13 @@ See `.env.example` for complete configuration documentation.
 - **User-Friendly Responses**: Clean error messages for users while detailed logs go to developers
 - **System Monitoring**: Automatic memory, CPU, and bot state reporting in error logs
 
+### Test Monitoring & Rate Limiting
+- **Real-Time Test Dashboard**: WebSocket-based monitoring at `/test-monitor`
+- **Live Agent Interactions**: See bot messages, AI responses, and API calls in real-time
+- **Global Rate Limiting**: Token bucket algorithm prevents Telegram API limits
+- **Test Channel Logging**: Auto-setup for Telegram test logging channels
+- **API Call Monitoring**: Track all Telegram API calls with rate limiting
+
 ## 🔗 API Endpoints
 
 ### Core Integration
@@ -228,6 +235,9 @@ PYTHONPATH=. uv run pytest -m performance      # Performance & stress tests
 
 # Demo the testing framework
 uv run python test_framework_demo.py
+
+# Set up test monitoring channel
+uv run python -c "from src.telegram_channel_manager import test_channel_setup; import asyncio; asyncio.run(test_channel_setup())"
 ```
 
 ### Test Environment Setup
@@ -267,6 +277,41 @@ tests/
 ```
 
 **See [tests/README.md](./tests/README.md) for detailed testing documentation, troubleshooting, and advanced usage.**
+
+## 🔬 Test Monitoring Dashboard
+
+Mini-Mancer includes a real-time monitoring dashboard for observing bot interactions during testing and development.
+
+### Accessing the Dashboard
+```bash
+# Start Mini-Mancer
+uv run python main.py
+
+# Open monitoring dashboard in browser
+# Visit: http://localhost:14159/test-monitor
+```
+
+### Dashboard Features
+- **Real-Time Events**: Live WebSocket stream of all bot interactions
+- **Event Types**: API calls, bot messages, AI responses, errors, test events
+- **Color-Coded Events**: Different colors for different event types
+- **Event Filtering**: Filter by event type or search specific content
+- **Connection Status**: Shows WebSocket connection and active monitoring
+
+### Event Types
+- 🔵 **API Call**: Telegram Bot API calls with rate limiting
+- 🟠 **Bot Message**: Messages sent by bots to users
+- 🟢 **AI Response**: AI-generated responses from agents
+- 🔴 **Error**: Errors and exceptions with full context
+- 🟡 **Test Start**: Beginning of automated tests
+- 🟣 **Test End**: Test completion with results
+
+### Rate Limiting
+All Telegram API calls are automatically rate-limited to prevent hitting API limits:
+- **20 requests/second** per bot (configurable via `TELEGRAM_RATE_LIMIT`)
+- **Token bucket algorithm** with automatic backoff
+- **Per-bot tracking** to handle multiple simultaneous bots
+- **Monitoring integration** to log all rate-limited calls
 
 ## ⚙️ Configuration
 
