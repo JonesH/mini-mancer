@@ -5,17 +5,20 @@ This template provides the structural foundation for Telegram bots, with AgentDN
 providing the personality, capabilities, and behavioral instructions.
 """
 
-import asyncio
-import json
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
+from pydantic import BaseModel, Field
 
-from ..models.agent_dna import AgentDNA, AgentCapability
-from ..constants import ERROR_MESSAGES, MEDIA_MESSAGES, format_photo_message, format_document_message
+from ..constants import (
+    ERROR_MESSAGES,
+    MEDIA_MESSAGES,
+    format_document_message,
+    format_photo_message,
+)
+from ..models.agent_dna import AgentCapability, AgentDNA
 
 
 class TelegramContext(BaseModel):
@@ -124,15 +127,15 @@ MESSAGE HANDLING:
 
         try:
             print(f"🧠 [BOT TEMPLATE] Processing message: '{text}' from user {user_id}")
-            
+
             # Validate input
             if not text or len(text.strip()) == 0:
                 return ERROR_MESSAGES["empty_message"]
-            
+
             if len(text) > 4000:  # Telegram message limit
                 text = text[:4000] + "..."
                 print("⚠️ [BOT TEMPLATE] Message truncated due to length")
-            
+
             # Generate response using AI agent with timeout
             try:
                 result = self.agent.run(text)
@@ -142,14 +145,14 @@ MESSAGE HANDLING:
             except Exception as ai_error:
                 print(f"❌ [BOT TEMPLATE] AI agent error: {ai_error}")
                 return ERROR_MESSAGES["ai_error"]
-            
+
             # Validate response
             if not response or len(response.strip()) == 0:
                 return ERROR_MESSAGES["empty_response"]
-            
+
             # Apply Telegram formatting fixes and length limits
             response = self._format_for_telegram(response)
-            
+
             print(f"🧠 [BOT TEMPLATE] Generated response: '{response[:100]}...'")
 
             # Add response to conversation history
@@ -163,13 +166,13 @@ MESSAGE HANDLING:
         except Exception as e:
             error_response = ERROR_MESSAGES["general_error"].format(error=str(e))
             print(f"❌ [BOT TEMPLATE] Error processing message: {e}")
-            
+
             # Add error to conversation history for debugging
             context.conversation_history.append({
                 "timestamp": datetime.now().isoformat(),
                 "error": str(e)
             })
-            
+
             return error_response
 
     async def handle_photo(self, photo_data: dict[str, Any]) -> str:
@@ -202,15 +205,15 @@ MESSAGE HANDLING:
         # Apply Telegram-specific markdown fixes
         # Fix bold formatting - Telegram uses *text* for bold
         text = text.replace("**", "*")
-        
+
         # Ensure proper line spacing for readability
         text = text.replace("\n\n\n", "\n\n")
-        
+
         # Apply Telegram message length limit (4096 characters)
         max_length = 4000  # Leave some buffer
         if len(text) > max_length:
             text = text[:max_length] + "...\n\n_Message truncated due to length_"
-        
+
         return text
 
     def _get_or_create_context(

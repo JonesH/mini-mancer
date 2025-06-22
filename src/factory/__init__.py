@@ -1,10 +1,4 @@
-from .bot_factory_agent import BotFactoryAgent, ConversationState, ProjectStatus, HumanAssistanceRequest
-from .assistance_handler import AssistanceHandler
+# Factory module - placeholder for future bot factory functionality
+# Previously imported modules have been refactored or removed
 
-__all__ = [
-    "BotFactoryAgent",
-    "ConversationState", 
-    "ProjectStatus",
-    "HumanAssistanceRequest",
-    "AssistanceHandler"
-]
+__all__: list[str] = []
