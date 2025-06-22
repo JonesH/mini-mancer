@@ -327,7 +327,7 @@ class ThinkingTool:
 
         return "\n".join(summary_parts)
 
-    def clear_context(self):
+    def clear_context(self) -> None:
         """Clear active thinking context"""
         self.active_context.clear()
 

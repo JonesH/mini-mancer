@@ -20,6 +20,7 @@ from .models.bot_requirements import BotRequirements
 from .telegram_integration import TelegramBotManager
 from .tools.thinking_tool import ThinkingTool, analyze_bot_requirements, think_about
 
+
 # Load environment variables
 load_dotenv()
 
@@ -30,7 +31,7 @@ class AgentController:
     """
     Core controller that orchestrates all Mini-Mancer components:
     - Telegram bot management
-    - OpenServ API integration  
+    - OpenServ API integration
     - Agno-AGI intelligence
     - FastAPI application
     """
@@ -41,8 +42,7 @@ class AgentController:
 
         # Initialize FastAPI app
         self.app = FastAPI(
-            title="Mini-Mancer Prototype",
-            description="OpenServ + Telegram + Agno-AGI Integration"
+            title="Mini-Mancer Prototype", description="OpenServ + Telegram + Agno-AGI Integration"
         )
 
         # Initialize core components
@@ -59,7 +59,7 @@ class AgentController:
             telegram_manager=self.telegram_manager,
             agno_agent=self.agno_agent,
             bot_compilation_queue=self.bot_compilation_queue,
-            completed_bot_specs=self.completed_bot_specs
+            completed_bot_specs=self.completed_bot_specs,
         )
 
         # Setup FastAPI routes
@@ -121,16 +121,16 @@ class AgentController:
     def _initialize_factory_bot(self):
         """Initialize the factory Telegram bot"""
         # Create agent DNA for a helpful assistant
-        agent_dna = TELEGRAM_BOT_TEMPLATE.instantiate({
-            "name": "PrototypeBot",
-            "purpose": "Demonstrate integrated OpenServ + Telegram + Agno-AGI functionality"
-        })
+        agent_dna = TELEGRAM_BOT_TEMPLATE.instantiate(
+            {
+                "name": "PrototypeBot",
+                "purpose": "Demonstrate integrated OpenServ + Telegram + Agno-AGI functionality",
+            }
+        )
 
         # Initialize factory Telegram bot using existing template
         self.telegram_bot = TelegramBotTemplate(
-            agent_dna=agent_dna,
-            model="gpt-4o-mini",
-            bot_token=self.factory_token
+            agent_dna=agent_dna, model="gpt-4o-mini", bot_token=self.factory_token
         )
 
         # Initialize Telegram webhook handler
@@ -140,6 +140,7 @@ class AgentController:
 
     def _register_bot_creation_tools(self):
         """Register bot creation and thinking tools with the factory agent"""
+
         def deep_think_tool(topic: str, context: dict = None) -> str:
             """Advanced thinking and analysis tool for complex decisions"""
             return think_about(topic, context)
@@ -151,7 +152,9 @@ class AgentController:
         # Note: In actual implementation, these would be properly registered with Agno
         # For now, these are available through direct method calls in chat handling
 
-        logger.info("🛠️ BotMother tools registered: deep thinking, requirements analysis, bot creation")
+        logger.info(
+            "🛠️ BotMother tools registered: deep thinking, requirements analysis, bot creation"
+        )
 
     def _setup_routes(self):
         """Setup all FastAPI routes using the API router"""
@@ -162,60 +165,48 @@ class AgentController:
         # OpenServ integration endpoints
         self.app.add_api_route("/openserv", self.api_router.openserv_main, methods=["POST"])
         self.app.add_api_route(
-            "/openserv/compile_bot",
-            self.api_router.openserv_compile_bot,
-            methods=["POST"]
+            "/openserv/compile_bot", self.api_router.openserv_compile_bot, methods=["POST"]
         )
         self.app.add_api_route(
             "/openserv/compilation_status/{compilation_id}",
             self.api_router.get_compilation_status,
-            methods=["GET"]
+            methods=["GET"],
         )
         self.app.add_api_route(
-            "/openserv/available_tools",
-            self.api_router.get_available_tools,
-            methods=["GET"]
+            "/openserv/available_tools", self.api_router.get_available_tools, methods=["GET"]
         )
         self.app.add_api_route(
-            "/openserv/test_connection",
-            self.api_router.test_openserv_connection,
-            methods=["POST"]
+            "/openserv/test_connection", self.api_router.test_openserv_connection, methods=["POST"]
         )
         self.app.add_api_route("/health", self.api_router.health_check, methods=["GET"])
         self.app.add_api_route("/openserv/ping", self.api_router.openserv_ping, methods=["POST"])
         self.app.add_api_route(
-            "/openserv/do_task",
-            self.api_router.openserv_do_task,
-            methods=["POST"]
+            "/openserv/do_task", self.api_router.openserv_do_task, methods=["POST"]
         )
         self.app.add_api_route(
             "/openserv/respond_chat_message",
             self.api_router.openserv_respond_chat,
-            methods=["POST"]
+            methods=["POST"],
         )
 
         # Test monitoring endpoints
         self.app.add_api_route(
-            "/test-monitor",
-            self.api_router.test_monitor_dashboard,
-            methods=["GET"]
+            "/test-monitor", self.api_router.test_monitor_dashboard, methods=["GET"]
         )
         self.app.add_api_websocket_route("/test-monitor/ws", self.api_router.test_monitor_websocket)
         self.app.add_api_route(
-            "/test-monitor/events",
-            self.api_router.get_test_events,
-            methods=["GET"]
+            "/test-monitor/events", self.api_router.get_test_events, methods=["GET"]
         )
         self.app.add_api_route(
-            "/test-monitor/stats",
-            self.api_router.get_test_stats,
-            methods=["GET"]
+            "/test-monitor/stats", self.api_router.get_test_stats, methods=["GET"]
         )
 
         logger.info("🛣️ API routes configured successfully")
 
     # Delegation methods for bot operations
-    def create_new_bot_instant(self, bot_name: str, bot_purpose: str, personality: str = "helpful") -> str:
+    def create_new_bot_instant(
+        self, bot_name: str, bot_purpose: str, personality: str = "helpful"
+    ) -> str:
         """Create a new bot using instant mode"""
         return self.telegram_manager.create_bot_instant(bot_name, bot_purpose, personality)
 

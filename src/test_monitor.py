@@ -13,12 +13,14 @@ from typing import Any
 
 from fastapi import WebSocket
 
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TestEvent:
     """Represents a test event for monitoring"""
+
     timestamp: float
     event_type: str  # 'api_call', 'bot_message', 'ai_response', 'error', 'test_start', 'test_end'
     bot_token: str | None
@@ -27,16 +29,16 @@ class TestEvent:
     content: str
     metadata: dict[str, Any]
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {
-            'timestamp': self.timestamp,
-            'datetime': datetime.fromtimestamp(self.timestamp).isoformat(),
-            'event_type': self.event_type,
-            'bot_token': self.bot_token[:10] + '...' if self.bot_token else None,
-            'user_id': self.user_id,
-            'chat_id': self.chat_id,
-            'content': self.content,
-            'metadata': self.metadata
+            "timestamp": self.timestamp,
+            "datetime": datetime.fromtimestamp(self.timestamp).isoformat(),
+            "event_type": self.event_type,
+            "bot_token": self.bot_token[:10] + "..." if self.bot_token else None,
+            "user_id": self.user_id,
+            "chat_id": self.chat_id,
+            "content": self.content,
+            "metadata": self.metadata,
         }
 
 
@@ -44,17 +46,19 @@ class TestMonitor:
     """Real-time test monitoring system"""
 
     def __init__(self, max_events: int = 1000):
-        self.events: deque = deque(maxlen=max_events)
+        self.events: deque[TestEvent] = deque(maxlen=max_events)
         self.active_connections: list[WebSocket] = []
         self.is_monitoring = False
 
-    async def log_event(self,
-                       event_type: str,
-                       content: str,
-                       bot_token: str | None = None,
-                       user_id: str | None = None,
-                       chat_id: str | None = None,
-                       **metadata):
+    async def log_event(
+        self,
+        event_type: str,
+        content: str,
+        bot_token: str | None = None,
+        user_id: str | None = None,
+        chat_id: str | None = None,
+        **metadata: Any,
+    ) -> None:
         """Log a test event and broadcast to connected clients"""
         event = TestEvent(
             timestamp=time.time(),
@@ -63,7 +67,7 @@ class TestMonitor:
             user_id=user_id,
             chat_id=chat_id,
             content=content,
-            metadata=metadata
+            metadata=metadata,
         )
 
         self.events.append(event)
@@ -72,7 +76,7 @@ class TestMonitor:
         if self.active_connections:
             await self._broadcast_event(event)
 
-    async def _broadcast_event(self, event: TestEvent):
+    async def _broadcast_event(self, event: TestEvent) -> None:
         """Broadcast event to all connected WebSocket clients"""
         message = json.dumps(event.to_dict())
         disconnected = []
@@ -88,7 +92,7 @@ class TestMonitor:
         for conn in disconnected:
             self.active_connections.remove(conn)
 
-    async def connect_websocket(self, websocket: WebSocket):
+    async def connect_websocket(self, websocket: WebSocket) -> None:
         """Add new WebSocket connection"""
         await websocket.accept()
         self.active_connections.append(websocket)
@@ -102,7 +106,7 @@ class TestMonitor:
                 logger.warning(f"Failed to send recent events: {e}")
                 break
 
-    def disconnect_websocket(self, websocket: WebSocket):
+    def disconnect_websocket(self, websocket: WebSocket) -> None:
         """Remove WebSocket connection"""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
@@ -120,17 +124,17 @@ class TestMonitor:
         """Get monitoring statistics"""
         events = list(self.events)
 
-        event_counts = {}
+        event_counts: dict[str, int] = {}
         for event in events:
             event_counts[event.event_type] = event_counts.get(event.event_type, 0) + 1
 
         return {
-            'total_events': len(events),
-            'active_connections': len(self.active_connections),
-            'event_types': event_counts,
-            'monitoring_active': self.is_monitoring,
-            'oldest_event': events[0].timestamp if events else None,
-            'newest_event': events[-1].timestamp if events else None
+            "total_events": len(events),
+            "active_connections": len(self.active_connections),
+            "event_types": event_counts,
+            "monitoring_active": self.is_monitoring,
+            "oldest_event": events[0].timestamp if events else None,
+            "newest_event": events[-1].timestamp if events else None,
         }
 
 
@@ -168,12 +172,12 @@ def get_dashboard_html() -> str:
 </head>
 <body>
     <div class="header">
-        <h1>🔬 Mini-Mancer Test Monitor 
+        <h1>🔬 Mini-Mancer Test Monitor
             <span id="status" class="connection-status disconnected">Disconnected</span>
         </h1>
         <p>Real-time monitoring of bot interactions and test events</p>
     </div>
-    
+
     <div class="stats">
         <div class="stat-box">
             <strong>Total Events:</strong> <span id="total-events">0</span>
@@ -185,7 +189,7 @@ def get_dashboard_html() -> str:
             <strong>Last Event:</strong> <span id="last-event">None</span>
         </div>
     </div>
-    
+
     <div class="events" id="events"></div>
 
     <script>
@@ -195,60 +199,60 @@ def get_dashboard_html() -> str:
         const totalEvents = document.getElementById('total-events');
         const connections = document.getElementById('connections');
         const lastEvent = document.getElementById('last-event');
-        
+
         let eventCount = 0;
-        
+
         ws.onopen = function() {
             status.textContent = 'Connected';
             status.className = 'connection-status connected';
         };
-        
+
         ws.onclose = function() {
             status.textContent = 'Disconnected';
             status.className = 'connection-status disconnected';
         };
-        
+
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
             addEvent(data);
             updateStats();
         };
-        
+
         function addEvent(event) {
             const eventDiv = document.createElement('div');
             eventDiv.className = `event ${event.event_type}`;
-            
+
             eventDiv.innerHTML = `
                 <div class="timestamp">${event.datetime} | ${event.event_type.toUpperCase()}</div>
                 <div class="content">${escapeHtml(event.content)}</div>
                 <div class="metadata">
-                    Bot: ${event.bot_token || 'N/A'} | 
-                    User: ${event.user_id || 'N/A'} | 
+                    Bot: ${event.bot_token || 'N/A'} |
+                    User: ${event.user_id || 'N/A'} |
                     Chat: ${event.chat_id || 'N/A'}
                     ${Object.keys(event.metadata).length > 0 ? ' | ' + JSON.stringify(event.metadata) : ''}
                 </div>
             `;
-            
+
             events.insertBefore(eventDiv, events.firstChild);
             eventCount++;
-            
+
             // Keep only last 100 events visible
             while (events.children.length > 100) {
                 events.removeChild(events.lastChild);
             }
         }
-        
+
         function updateStats() {
             totalEvents.textContent = eventCount;
             lastEvent.textContent = new Date().toLocaleTimeString();
         }
-        
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-        
+
         // Auto-scroll to top when new events arrive
         events.addEventListener('DOMNodeInserted', function() {
             events.scrollTop = 0;
@@ -260,66 +264,51 @@ def get_dashboard_html() -> str:
 
 
 # Integration functions for easy use in tests and bot code
-async def log_api_call(method_name: str, bot_token: str, **kwargs):
+async def log_api_call(method_name: str, bot_token: str, **kwargs: Any) -> None:
     """Log an API call event"""
     await monitor.log_event(
-        'api_call',
-        f"Called {method_name}",
-        bot_token=bot_token,
-        method=method_name,
-        **kwargs
+        "api_call", f"Called {method_name}", bot_token=bot_token, method=method_name, **kwargs
     )
 
 
-async def log_bot_message(content: str, bot_token: str, user_id: str, chat_id: str):
+async def log_bot_message(content: str, bot_token: str, user_id: str, chat_id: str) -> None:
     """Log a bot message event"""
     await monitor.log_event(
-        'bot_message',
-        content,
-        bot_token=bot_token,
-        user_id=user_id,
-        chat_id=chat_id
+        "bot_message", content, bot_token=bot_token, user_id=user_id, chat_id=chat_id
     )
 
 
-async def log_ai_response(prompt: str, response: str, bot_token: str):
+async def log_ai_response(prompt: str, response: str, bot_token: str) -> None:
     """Log an AI response event"""
     await monitor.log_event(
-        'ai_response',
+        "ai_response",
         f"Prompt: {prompt[:100]}... → Response: {response[:100]}...",
         bot_token=bot_token,
         prompt=prompt,
-        response=response
+        response=response,
     )
 
 
-async def log_test_start(test_name: str, **metadata):
+async def log_test_start(test_name: str, **metadata: Any) -> None:
     """Log test start event"""
     await monitor.log_event(
-        'test_start',
-        f"Started test: {test_name}",
-        test_name=test_name,
-        **metadata
+        "test_start", f"Started test: {test_name}", test_name=test_name, **metadata
     )
 
 
-async def log_test_end(test_name: str, result: str, **metadata):
+async def log_test_end(test_name: str, result: str, **metadata: Any) -> None:
     """Log test end event"""
     await monitor.log_event(
-        'test_end',
-        f"Test {test_name}: {result}",
-        test_name=test_name,
-        result=result,
-        **metadata
+        "test_end", f"Test {test_name}: {result}", test_name=test_name, result=result, **metadata
     )
 
 
-async def log_error(error: Exception, context: str, **metadata):
+async def log_error(error: Exception, context: str, **metadata: Any) -> None:
     """Log an error event"""
     await monitor.log_event(
-        'error',
+        "error",
         f"Error in {context}: {str(error)}",
         error_type=type(error).__name__,
         context=context,
-        **metadata
+        **metadata,
     )

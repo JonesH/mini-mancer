@@ -23,6 +23,7 @@ from ..models.agent_dna import AgentCapability, AgentDNA
 
 class TelegramContext(BaseModel):
     """Runtime context for Telegram bot interactions"""
+
     user_id: str
     chat_id: str
     username: str | None = None
@@ -40,10 +41,7 @@ class TelegramBotTemplate:
     """
 
     def __init__(
-        self,
-        agent_dna: AgentDNA,
-        model: str = "gpt-4o-mini",
-        bot_token: str | None = None
+        self, agent_dna: AgentDNA, model: str = "gpt-4o-mini", bot_token: str | None = None
     ):
         self.dna = agent_dna
         self.bot_token = bot_token
@@ -114,16 +112,12 @@ MESSAGE HANDLING:
         message_id = message_data.get("message_id")
 
         # Get or create context
-        context = self._get_or_create_context(
-            user_id, chat_id, username, message_id
-        )
+        context = self._get_or_create_context(user_id, chat_id, username, message_id)
 
         # Add message to conversation history
-        context.conversation_history.append({
-            "timestamp": datetime.now().isoformat(),
-            "user": text,
-            "message_id": message_id
-        })
+        context.conversation_history.append(
+            {"timestamp": datetime.now().isoformat(), "user": text, "message_id": message_id}
+        )
 
         try:
             print(f"🧠 [BOT TEMPLATE] Processing message: '{text}' from user {user_id}")
@@ -139,7 +133,7 @@ MESSAGE HANDLING:
             # Generate response using AI agent with timeout
             try:
                 result = self.agent.run(text)
-                if not result or not hasattr(result, 'content'):
+                if not result or not hasattr(result, "content"):
                     raise ValueError("Invalid response from AI agent")
                 response = result.content
             except Exception as ai_error:
@@ -156,10 +150,9 @@ MESSAGE HANDLING:
             print(f"🧠 [BOT TEMPLATE] Generated response: '{response[:100]}...'")
 
             # Add response to conversation history
-            context.conversation_history.append({
-                "timestamp": datetime.now().isoformat(),
-                "bot": response
-            })
+            context.conversation_history.append(
+                {"timestamp": datetime.now().isoformat(), "bot": response}
+            )
 
             return response
 
@@ -168,10 +161,9 @@ MESSAGE HANDLING:
             print(f"❌ [BOT TEMPLATE] Error processing message: {e}")
 
             # Add error to conversation history for debugging
-            context.conversation_history.append({
-                "timestamp": datetime.now().isoformat(),
-                "error": str(e)
-            })
+            context.conversation_history.append(
+                {"timestamp": datetime.now().isoformat(), "error": str(e)}
+            )
 
             return error_response
 
@@ -195,10 +187,10 @@ MESSAGE HANDLING:
     def _format_for_telegram(self, text: str) -> str:
         """
         Format text for proper Telegram markdown rendering and length limits.
-        
+
         Args:
             text: Raw text response
-            
+
         Returns:
             Formatted text suitable for Telegram
         """
@@ -217,19 +209,12 @@ MESSAGE HANDLING:
         return text
 
     def _get_or_create_context(
-        self,
-        user_id: str,
-        chat_id: str,
-        username: str | None,
-        message_id: int | None
+        self, user_id: str, chat_id: str, username: str | None, message_id: int | None
     ) -> TelegramContext:
         """Get existing context or create new one for user"""
         if user_id not in self.active_contexts:
             self.active_contexts[user_id] = TelegramContext(
-                user_id=user_id,
-                chat_id=chat_id,
-                username=username,
-                message_id=message_id
+                user_id=user_id, chat_id=chat_id, username=username, message_id=message_id
             )
         else:
             # Update context with latest message info
@@ -248,7 +233,7 @@ MESSAGE HANDLING:
             "platform": self.dna.target_platform.value,
             "version": self.dna.version,
             "created_at": self.dna.created_at.isoformat(),
-            "active_conversations": len(self.active_contexts)
+            "active_conversations": len(self.active_contexts),
         }
 
     async def shutdown(self):
@@ -300,7 +285,7 @@ class TelegramWebhookHandler:
                 "text": response_text,
                 "reply_to_message_id": message["message_id"],
                 "parse_mode": "HTML",
-                "disable_web_page_preview": True
+                "disable_web_page_preview": True,
             }
 
         except Exception as e:

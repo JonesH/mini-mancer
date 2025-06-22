@@ -33,28 +33,28 @@ BOTMOTHER_INITIAL_DISCOVERY_PROMPTS = [
     "I'll create your bot!",
     "What bot do you need?",
     "Tell me your bot's purpose.",
-    "What should your bot do?"
+    "What should your bot do?",
 ]
 
 BOTMOTHER_REQUIREMENTS_ANALYSIS_PROMPTS = [
     "Got it! Creating now...",
     "Perfect, let me build this.",
     "Creating your bot...",
-    "Bot ready in a moment!"
+    "Bot ready in a moment!",
 ]
 
 BOTMOTHER_ARCHITECTURE_MODE_PROMPTS = [
     "Building your custom bot.",
     "Adding personality and tools.",
     "Almost ready!",
-    "Bot architecture complete."
+    "Bot architecture complete.",
 ]
 
 BOTMOTHER_CREATION_MODE_PROMPTS = [
     "Bot created successfully!",
     "Your bot is ready!",
     "Bot deployed!",
-    "Creation complete!"
+    "Creation complete!",
 ]
 
 # Dual creation mode instructions
@@ -88,8 +88,8 @@ BOTMOTHER_COMPLETE_SYSTEM_PROMPT = f"""
 
 # Export the main prompt
 __all__ = [
-    'BOTMOTHER_COMPLETE_SYSTEM_PROMPT',
-    'BOTMOTHER_CORE_SYSTEM_PROMPT',
-    'DUAL_CREATION_MODE_INSTRUCTIONS',
-    'BOTMOTHER_THINKING_PROMPTS'
+    "BOTMOTHER_COMPLETE_SYSTEM_PROMPT",
+    "BOTMOTHER_CORE_SYSTEM_PROMPT",
+    "DUAL_CREATION_MODE_INSTRUCTIONS",
+    "BOTMOTHER_THINKING_PROMPTS",
 ]

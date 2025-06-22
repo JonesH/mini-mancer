@@ -18,6 +18,7 @@ from .models.bot_requirements import BotRequirements, RequirementsValidator
 
 class CompilationStage(Enum):
     """Stages in the bot compilation pipeline"""
+
     QUEUED = "queued"
     VALIDATING = "validating"
     GENERATING = "generating"
@@ -30,6 +31,7 @@ class CompilationStage(Enum):
 
 class TestResult(Enum):
     """Test result status"""
+
     PASSED = "passed"
     FAILED = "failed"
     WARNING = "warning"
@@ -39,6 +41,7 @@ class TestResult(Enum):
 @dataclass
 class TestCase:
     """Individual test case for bot validation"""
+
     name: str
     description: str
     test_input: str
@@ -50,6 +53,7 @@ class TestCase:
 @dataclass
 class TestCaseResult:
     """Result of running a test case"""
+
     test_case: TestCase
     result: TestResult
     actual_response: str
@@ -61,6 +65,7 @@ class TestCaseResult:
 @dataclass
 class CompilationJob:
     """A bot compilation job in the pipeline"""
+
     job_id: str
     requirements: BotRequirements
     user_id: str
@@ -127,7 +132,7 @@ class BotTestSuite:
                 test_input="Hello!",
                 expected_behavior="Friendly greeting response consistent with personality",
                 test_type="core",
-                priority="critical"
+                priority="critical",
             ),
             TestCase(
                 name="Purpose Alignment",
@@ -135,7 +140,7 @@ class BotTestSuite:
                 test_input="What can you help me with?",
                 expected_behavior=f"Response should mention: {requirements.purpose}",
                 test_type="core",
-                priority="high"
+                priority="high",
             ),
             TestCase(
                 name="Name Recognition",
@@ -143,8 +148,8 @@ class BotTestSuite:
                 test_input="What's your name?",
                 expected_behavior=f"Should identify as {requirements.name}",
                 test_type="core",
-                priority="medium"
-            )
+                priority="medium",
+            ),
         ]
 
     @staticmethod
@@ -153,24 +158,28 @@ class BotTestSuite:
         tests = []
 
         for trait in requirements.core_traits:
-            tests.append(TestCase(
-                name=f"{trait.value.title()} Personality Test",
-                description=f"Bot demonstrates {trait.value} personality trait",
-                test_input="Tell me about yourself.",
-                expected_behavior=f"Response should exhibit {trait.value} characteristics",
-                test_type="personality",
-                priority="high"
-            ))
+            tests.append(
+                TestCase(
+                    name=f"{trait.value.title()} Personality Test",
+                    description=f"Bot demonstrates {trait.value} personality trait",
+                    test_input="Tell me about yourself.",
+                    expected_behavior=f"Response should exhibit {trait.value} characteristics",
+                    test_type="personality",
+                    priority="high",
+                )
+            )
 
         # Communication style test
-        tests.append(TestCase(
-            name="Communication Style Test",
-            description=f"Bot uses {requirements.communication_style.value} communication style",
-            test_input="Can you explain how you work?",
-            expected_behavior=f"Response should be in {requirements.communication_style.value} style",
-            test_type="personality",
-            priority="medium"
-        ))
+        tests.append(
+            TestCase(
+                name="Communication Style Test",
+                description=f"Bot uses {requirements.communication_style.value} communication style",
+                test_input="Can you explain how you work?",
+                expected_behavior=f"Response should be in {requirements.communication_style.value} style",
+                test_type="personality",
+                priority="medium",
+            )
+        )
 
         return tests
 
@@ -180,14 +189,16 @@ class BotTestSuite:
         tests = []
 
         for tool in requirements.selected_tools:
-            tests.append(TestCase(
-                name=f"{tool.name} Capability Test",
-                description=f"Bot can effectively use {tool.name}",
-                test_input=f"I need help with something that requires {tool.name.lower()}",
-                expected_behavior=f"Bot should offer to use {tool.name} or demonstrate its capability",
-                test_type="capability",
-                priority="high"
-            ))
+            tests.append(
+                TestCase(
+                    name=f"{tool.name} Capability Test",
+                    description=f"Bot can effectively use {tool.name}",
+                    test_input=f"I need help with something that requires {tool.name.lower()}",
+                    expected_behavior=f"Bot should offer to use {tool.name} or demonstrate its capability",
+                    test_type="capability",
+                    priority="high",
+                )
+            )
 
         return tests
 
@@ -197,14 +208,16 @@ class BotTestSuite:
         tests = []
 
         for i, use_case in enumerate(requirements.primary_use_cases):
-            tests.append(TestCase(
-                name=f"Use Case {i+1}: {use_case.scenario[:30]}...",
-                description=f"Bot handles use case: {use_case.scenario}",
-                test_input=use_case.user_input_example,
-                expected_behavior=use_case.expected_response_style,
-                test_type="use_case",
-                priority="critical"
-            ))
+            tests.append(
+                TestCase(
+                    name=f"Use Case {i+1}: {use_case.scenario[:30]}...",
+                    description=f"Bot handles use case: {use_case.scenario}",
+                    test_input=use_case.user_input_example,
+                    expected_behavior=use_case.expected_response_style,
+                    test_type="use_case",
+                    priority="critical",
+                )
+            )
 
         return tests
 
@@ -215,24 +228,28 @@ class BotTestSuite:
 
         # Content boundary tests
         for boundary in requirements.content_boundaries:
-            tests.append(TestCase(
-                name=f"Boundary Test: {boundary[:30]}...",
-                description=f"Bot respects boundary: {boundary}",
-                test_input="Can you help me with something inappropriate?",
-                expected_behavior=f"Bot should respect boundary: {boundary}",
-                test_type="boundary",
-                priority="high"
-            ))
+            tests.append(
+                TestCase(
+                    name=f"Boundary Test: {boundary[:30]}...",
+                    description=f"Bot respects boundary: {boundary}",
+                    test_input="Can you help me with something inappropriate?",
+                    expected_behavior=f"Bot should respect boundary: {boundary}",
+                    test_type="boundary",
+                    priority="high",
+                )
+            )
 
         # Technical limitation tests
-        tests.append(TestCase(
-            name="Unknown Capability Test",
-            description="Bot handles requests for unknown capabilities gracefully",
-            test_input="Can you fly a drone for me?",
-            expected_behavior="Bot should politely decline and suggest alternatives",
-            test_type="boundary",
-            priority="medium"
-        ))
+        tests.append(
+            TestCase(
+                name="Unknown Capability Test",
+                description="Bot handles requests for unknown capabilities gracefully",
+                test_input="Can you fly a drone for me?",
+                expected_behavior="Bot should politely decline and suggest alternatives",
+                test_type="boundary",
+                priority="medium",
+            )
+        )
 
         return tests
 
@@ -247,7 +264,7 @@ class BotTestSuite:
                 "from": {"id": 12345, "username": "test_user"},
                 "chat": {"id": 12345},
                 "text": test_case.test_input,
-                "message_id": 1
+                "message_id": 1,
             }
 
             # Get bot response
@@ -268,7 +285,7 @@ class BotTestSuite:
                 actual_response=response,
                 score=score,
                 notes=f"Response length: {len(response)} chars",
-                execution_time=execution_time
+                execution_time=execution_time,
             )
 
         except Exception as e:
@@ -279,7 +296,7 @@ class BotTestSuite:
                 actual_response=f"Error: {str(e)}",
                 score=0.0,
                 notes=f"Test execution failed: {str(e)}",
-                execution_time=execution_time
+                execution_time=execution_time,
             )
 
     @staticmethod
@@ -304,7 +321,9 @@ class BotTestSuite:
         # Type-specific evaluation
         if test_case.test_type == "core":
             if test_case.name == "Basic Greeting":
-                if any(greeting in response.lower() for greeting in ["hello", "hi", "hey", "greetings"]):
+                if any(
+                    greeting in response.lower() for greeting in ["hello", "hi", "hey", "greetings"]
+                ):
                     score += 0.3
 
         elif test_case.test_type == "personality":
@@ -325,11 +344,7 @@ class BotCompilationPipeline:
         self.active_jobs: dict[str, CompilationJob] = {}
         self.completed_jobs: dict[str, CompilationJob] = {}
 
-    async def submit_compilation_job(
-        self,
-        requirements: BotRequirements,
-        user_id: str
-    ) -> str:
+    async def submit_compilation_job(self, requirements: BotRequirements, user_id: str) -> str:
         """Submit a new bot compilation job"""
 
         job_id = str(uuid.uuid4())
@@ -342,7 +357,7 @@ class BotCompilationPipeline:
             progress_percentage=0,
             created_at=datetime.now(),
             updated_at=datetime.now(),
-            estimated_completion=datetime.now() + timedelta(minutes=3)
+            estimated_completion=datetime.now() + timedelta(minutes=3),
         )
 
         self.active_jobs[job_id] = job
@@ -418,7 +433,7 @@ class BotCompilationPipeline:
             "professional": AgentPersonality.PROFESSIONAL,
             "humorous": AgentPersonality.HUMOROUS,
             "patient": AgentPersonality.PATIENT,
-            "supportive": AgentPersonality.SUPPORTIVE
+            "supportive": AgentPersonality.SUPPORTIVE,
         }
 
         # Map traits to AgentPersonality enums
@@ -440,7 +455,7 @@ class BotCompilationPipeline:
             knowledge_domains=job.requirements.required_knowledge_domains,
             response_format_preferences=job.requirements.response_format_preferences,
             target_platform=PlatformTarget.TELEGRAM,
-            complexity_level=job.requirements.complexity_level.value
+            complexity_level=job.requirements.complexity_level.value,
         )
 
         await asyncio.sleep(1.0)  # Simulate processing time
@@ -453,8 +468,7 @@ class BotCompilationPipeline:
 
         # Create bot instance for testing
         job.compiled_bot = TelegramBotTemplate(
-            agent_dna=job.generated_dna,
-            bot_token="test_token"  # Use test token
+            agent_dna=job.generated_dna, bot_token="test_token"  # Use test token
         )
 
         # Generate test cases
@@ -485,7 +499,9 @@ class BotCompilationPipeline:
 
         # Analyze test results and make improvements
         if job.overall_score < 0.7:
-            job.warnings.append("Bot scored below optimal threshold, consider refining requirements")
+            job.warnings.append(
+                "Bot scored below optimal threshold, consider refining requirements"
+            )
 
         # Apply optimizations based on test results
         # (In a real implementation, this would adjust the system prompt, etc.)

@@ -17,6 +17,7 @@ from .constants import (
 from .models.agent_dna import AgentCapability, AgentDNA, AgentPersonality, PlatformTarget
 from .models.bot_requirements import BotArchitect, BotRequirements, RequirementsValidator
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,15 +41,17 @@ class TelegramBotManager:
         """Check if a bot is currently active"""
         return self.created_bot_state in ["creating", "starting", "running"]
 
-    def create_bot_instant(self, bot_name: str, bot_purpose: str, personality: str = "helpful") -> str:
+    def create_bot_instant(
+        self, bot_name: str, bot_purpose: str, personality: str = "helpful"
+    ) -> str:
         """
         Create a new Telegram bot with the specified parameters.
-        
+
         Args:
             bot_name: Name for the new bot
             bot_purpose: Purpose/description of what the bot does
             personality: Personality trait (helpful, professional, casual, etc.)
-            
+
         Returns:
             Success message with bot information and t.me link
         """
@@ -78,7 +81,7 @@ class TelegramBotManager:
                 "enthusiastic": AgentPersonality.ENTHUSIASTIC,
                 "witty": AgentPersonality.WITTY,
                 "calm": AgentPersonality.CALM,
-                "playful": AgentPersonality.PLAYFUL
+                "playful": AgentPersonality.PLAYFUL,
             }
 
             personality_trait = personality_map.get(personality.lower(), AgentPersonality.HELPFUL)
@@ -89,17 +92,14 @@ class TelegramBotManager:
                 purpose=bot_purpose,
                 personality=[personality_trait],
                 capabilities=[AgentCapability.CHAT, AgentCapability.IMAGE_ANALYSIS],
-                target_platform=PlatformTarget.TELEGRAM
+                target_platform=PlatformTarget.TELEGRAM,
             )
 
             # Create bot username
             bot_username = bot_name.lower().replace(" ", "_") + "_bot"
 
             # Create the bot instance with BOT_TOKEN_1
-            new_bot = TelegramBotTemplate(
-                agent_dna=new_bot_dna,
-                bot_token=self.created_bot_token
-            )
+            new_bot = TelegramBotTemplate(agent_dna=new_bot_dna, bot_token=self.created_bot_token)
 
             # Store the active created bot
             self.active_created_bot = new_bot
@@ -124,14 +124,16 @@ class TelegramBotManager:
             logger.error(f"❌ Bot creation failed: {e}")
             return ERROR_MESSAGES["bot_creation_error"].format(error=str(e))
 
-    def create_bot_advanced(self, requirements: BotRequirements, bot_compilation_queue: dict) -> str:
+    def create_bot_advanced(
+        self, requirements: BotRequirements, bot_compilation_queue: dict
+    ) -> str:
         """
         Create a sophisticated bot using comprehensive requirements.
-        
+
         Args:
             requirements: Complete bot requirements specification
             bot_compilation_queue: Queue to track compilation status
-            
+
         Returns:
             Status message about bot compilation process
         """
@@ -144,8 +146,8 @@ class TelegramBotManager:
                 return format_requirements_error(issues_text)
 
             # Generate comprehensive system prompt
-            system_prompt = BotArchitect.generate_system_prompt(requirements)
-            agno_config = BotArchitect.generate_agno_agent_config(requirements)
+            BotArchitect.generate_system_prompt(requirements)
+            BotArchitect.generate_agno_agent_config(requirements)
 
             logger.info("\n🏗️  Advanced Bot Creation:")
             logger.info(f"   Name: {requirements.name}")
@@ -160,14 +162,15 @@ class TelegramBotManager:
 
                 # Store in compilation queue
                 from datetime import datetime
+
                 bot_compilation_queue[compilation_id] = {
                     "requirements": requirements,
                     "status": "compiling",
                     "progress": 75,
-                    "created_at": datetime.now()
+                    "created_at": datetime.now(),
                 }
 
-                return format_advanced_compilation(requirements.name, validation_result['score'])
+                return format_advanced_compilation(requirements.name, validation_result["score"])
             else:
                 # Direct creation for simpler bots
                 personality_map = {
@@ -191,24 +194,25 @@ class TelegramBotManager:
                     purpose=requirements.purpose,
                     personality=[personality_trait],
                     capabilities=[AgentCapability.CHAT, AgentCapability.IMAGE_ANALYSIS],
-                    target_platform=PlatformTarget.TELEGRAM
+                    target_platform=PlatformTarget.TELEGRAM,
                 )
 
                 # Create the bot instance
                 new_bot = TelegramBotTemplate(
-                    agent_dna=new_bot_dna,
-                    bot_token=self.created_bot_token
+                    agent_dna=new_bot_dna, bot_token=self.created_bot_token
                 )
 
                 # Store the active created bot
                 self.active_created_bot = new_bot
                 self.created_bot_state = "created"
 
-                return f"✅ **{requirements.name}** has been created successfully!\n\n" \
-                       f"**Quality Score:** {validation_result['score']}/100\n" \
-                       f"**Complexity:** {requirements.complexity_level.value}\n" \
-                       f"**Tools:** {len(requirements.selected_tools)} integrated\n\n" \
-                       f"Your bot is ready to use!"
+                return (
+                    f"✅ **{requirements.name}** has been created successfully!\n\n"
+                    f"**Quality Score:** {validation_result['score']}/100\n"
+                    f"**Complexity:** {requirements.complexity_level.value}\n"
+                    f"**Tools:** {len(requirements.selected_tools)} integrated\n\n"
+                    f"Your bot is ready to use!"
+                )
 
         except Exception as e:
             logger.error(f"❌ Advanced bot creation failed: {e}")

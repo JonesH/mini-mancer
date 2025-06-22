@@ -10,6 +10,7 @@ import os
 from telegram import Bot
 from telegram.error import TelegramError
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +21,7 @@ class ChannelManager:
         self.bot = Bot(token=bot_token)
         self.created_channels: dict[str, str] = {}  # name -> chat_id
 
-    async def create_test_channel(self, channel_name: str, description: str = None) -> str | None:
+    async def create_test_channel(self, channel_name: str, description: str | None = None) -> str | None:
         """
         Create a simple test channel
         Note: This requires the bot to have appropriate permissions
@@ -41,8 +42,8 @@ class ChannelManager:
                     await self.bot.send_message(
                         chat_id=channel_id,
                         text=f"🧪 Test channel setup for '{channel_name}'\n\n"
-                             f"Description: {description or 'Test logging channel'}\n"
-                             f"Status: Ready for test monitoring"
+                        f"Description: {description or 'Test logging channel'}\n"
+                        f"Status: Ready for test monitoring",
                     )
                     self.created_channels[channel_name] = channel_id
                     logger.info(f"✅ Using existing channel {channel_id} for '{channel_name}'")
@@ -65,9 +66,7 @@ class ChannelManager:
                 return False
 
             await self.bot.send_message(
-                chat_id=channel_id,
-                text=f"🧪 **Test Log**\n\n{message}",
-                parse_mode='Markdown'
+                chat_id=channel_id, text=f"🧪 **Test Log**\n\n{message}", parse_mode="Markdown"
             )
             return True
 
@@ -113,7 +112,7 @@ class ChannelManager:
         """
 
 
-async def test_channel_setup():
+async def test_channel_setup() -> None:
     """Test channel setup with current configuration"""
     bot_token = os.getenv("BOT_TOKEN") or os.getenv("TEST_BOT_TOKEN")
     if not bot_token:
@@ -127,7 +126,9 @@ async def test_channel_setup():
 
     if channel_id:
         # Send test message
-        success = await manager.send_test_log("✅ Channel setup successful! Test monitoring is ready.")
+        success = await manager.send_test_log(
+            "✅ Channel setup successful! Test monitoring is ready."
+        )
         if success:
             print(f"✅ Test channel setup complete! Channel ID: {channel_id}")
         else:

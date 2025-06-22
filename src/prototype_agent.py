@@ -21,6 +21,7 @@ from .api_models import (
     OpenServTaskRequest,
 )
 
+
 # For backward compatibility, expose the AgentController as PrototypeAgent
 PrototypeAgent = AgentController
 
@@ -30,6 +31,7 @@ try:
     app = prototype.app
 except Exception as e:
     import logging
+
     logging.error(f"Failed to initialize prototype agent: {e}")
     prototype = None
     app = None
@@ -42,5 +44,5 @@ __all__ = [
     "OpenServTaskRequest",
     "OpenServChatRequest",
     "BotCompilationRequest",
-    "BotCompilationStatus"
+    "BotCompilationStatus",
 ]

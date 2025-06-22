@@ -31,6 +31,21 @@ source .venv/bin/activate
 uv run python main.py
 ```
 
+### Code Quality & Testing
+```bash
+# Run comprehensive code quality check
+./scripts/format.sh
+
+# Individual quality tools
+uv run ruff check --fix src/ main.py     # Linting & auto-fixes
+uv run black src/ main.py                # Code formatting
+uv run isort src/ main.py                # Import organization
+uv run mypy src/ main.py                 # Type checking
+
+# Run tests
+uv run pytest tests/                     # Run test suite
+```
+
 ## Code Style Guidelines
 
 ### Clean Code Principles
@@ -119,11 +134,32 @@ uv run python main.py
 
 ## Project Structure
 
+### Core Application
 - `main.py` - Entry point with dual Telegram + FastAPI servers
-- `src/prototype_agent.py` - Core PrototypeAgent integrating all systems
-- `src/agents/telegram_bot_template.py` - Telegram bot wrapper
-- `src/models/agent_dna.py` - Agent DNA and template system
-- `pyproject.toml` - Project configuration and dependencies
+- `src/agent_controller.py` - Core AgentController orchestrating all components
+- `src/prototype_agent.py` - Compatibility layer and main exports
+
+### Bot System
+- `src/agents/telegram_bot_template.py` - Telegram bot template and webhook handler
+- `src/models/agent_dna.py` - Agent DNA system and templates
+- `src/models/bot_requirements.py` - Comprehensive bot requirements and validation
+- `src/bot_compilation_pipeline.py` - Advanced bot testing and quality assurance
+
+### Integration & APIs
+- `src/api_router.py` - FastAPI route handlers for OpenServ integration
+- `src/api_models.py` - Pydantic models for API requests/responses
+- `src/telegram_integration.py` - Telegram bot lifecycle management
+
+### Utilities & Infrastructure
+- `src/utils/` - Error handling and utility functions
+- `src/constants/` - User-facing messages and constants
+- `src/tools/thinking_tool.py` - Advanced reasoning capabilities
+- `src/test_monitor.py` - Real-time test monitoring and WebSocket dashboard
+
+### Configuration & Quality
+- `pyproject.toml` - Project configuration, dependencies, and quality tool settings
+- `scripts/format.sh` - Automated code quality script
+- `tests/` - Comprehensive test suite
 - `docker-compose.yaml` - PostgreSQL + app containerization
 
 ## Key Dependencies
@@ -147,3 +183,39 @@ uv run python main.py
  • **NEVER** add "Generated with Claude Code" to commit messages  
  • Keep commit messages clean and professional
  • Focus on what changed and why, not who/what wrote it
+
+## Code Quality Standards
+
+### Automated Quality Pipeline
+The project uses a comprehensive quality pipeline with three integrated tools:
+
+- **Ruff** - Fast Python linter and formatter with extensive rule coverage
+- **Black** - Opinionated code formatter for consistent styling
+- **isort** - Import organization and sorting
+- **MyPy** - Static type checking for type safety
+
+### Quality Metrics
+- **Ruff violations**: Target < 10 cosmetic issues
+- **MyPy compliance**: All type annotations must pass validation
+- **Test coverage**: Maintain comprehensive test suite
+- **Import organization**: No star imports, explicit imports only
+
+### Running Quality Checks
+```bash
+# Complete quality check (recommended)
+./scripts/format.sh
+
+# Fix most issues automatically
+uv run ruff check --fix src/ main.py
+
+# Manual quality tools
+uv run black src/ main.py        # Format code
+uv run isort src/ main.py        # Organize imports  
+uv run mypy src/ main.py         # Type checking
+```
+
+### Quality Gates
+- All code must pass MyPy type checking
+- Ruff violations should be minimal (< 10 cosmetic issues)
+- No F-series errors (undefined names, imports, etc.)
+- Modern Python 3.11+ type annotations required

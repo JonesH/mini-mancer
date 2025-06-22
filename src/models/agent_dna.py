@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 class AgentPersonality(str, Enum):
     """Core personality archetypes for agents"""
+
     HELPFUL = "helpful"
     WITTY = "witty"
     PROFESSIONAL = "professional"
@@ -35,6 +36,7 @@ class AgentPersonality(str, Enum):
 
 class AgentCapability(str, Enum):
     """Core capabilities that agents can possess"""
+
     CHAT = "chat"
     IMAGE_ANALYSIS = "image_analysis"
     WEB_SEARCH = "web_search"
@@ -56,6 +58,7 @@ class AgentCapability(str, Enum):
 
 class PlatformTarget(str, Enum):
     """Supported platforms for agent deployment"""
+
     TELEGRAM = "telegram"
     DISCORD = "discord"
     SLACK = "slack"
@@ -74,60 +77,47 @@ class AgentDNA(BaseModel):
 
     # Behavioral Traits
     personality: list[AgentPersonality] = Field(
-        default_factory=list,
-        description="Core personality traits"
+        default_factory=list, description="Core personality traits"
     )
 
     # Enhanced Personality System (for sophisticated bots)
     communication_style: str = Field(
         default="conversational",
-        description="How the agent communicates (formal, casual, technical, etc.)"
+        description="How the agent communicates (formal, casual, technical, etc.)",
     )
-    response_tone: str = Field(
-        default="friendly",
-        description="Emotional tone of responses"
-    )
+    response_tone: str = Field(default="friendly", description="Emotional tone of responses")
     behavioral_patterns: list[str] = Field(
-        default_factory=list,
-        description="Specific behavioral patterns and quirks"
+        default_factory=list, description="Specific behavioral patterns and quirks"
     )
     personality_quirks: list[str] = Field(
-        default_factory=list,
-        description="Unique personality traits that make the bot memorable"
+        default_factory=list, description="Unique personality traits that make the bot memorable"
     )
 
     # Functional Capabilities
     capabilities: list[AgentCapability] = Field(
-        default_factory=list,
-        description="What the agent can do"
+        default_factory=list, description="What the agent can do"
     )
 
     # Knowledge and Expertise
     knowledge_domains: list[str] = Field(
-        default_factory=list,
-        description="Areas of specialized knowledge"
+        default_factory=list, description="Areas of specialized knowledge"
     )
     response_format_preferences: list[str] = Field(
         default_factory=list,
-        description="Preferred ways to format responses (bullet points, paragraphs, etc.)"
+        description="Preferred ways to format responses (bullet points, paragraphs, etc.)",
     )
 
     # Platform Configuration
     target_platform: PlatformTarget = Field(
-        default=PlatformTarget.TELEGRAM,
-        description="Primary deployment platform"
+        default=PlatformTarget.TELEGRAM, description="Primary deployment platform"
     )
 
     # Prompt Engineering
-    system_prompt: str = Field(
-        default="",
-        description="Base system prompt template"
-    )
+    system_prompt: str = Field(default="", description="Base system prompt template")
 
     # Quality and Complexity
     complexity_level: str = Field(
-        default="simple",
-        description="Bot complexity level (simple, standard, complex, enterprise)"
+        default="simple", description="Bot complexity level (simple, standard, complex, enterprise)"
     )
 
     # Metadata
@@ -143,7 +133,9 @@ class AgentDNA(BaseModel):
         prompt_sections = []
 
         # Core identity
-        prompt_sections.append(f"You are {self.name}, an AI assistant whose purpose is: {self.purpose}")
+        prompt_sections.append(
+            f"You are {self.name}, an AI assistant whose purpose is: {self.purpose}"
+        )
 
         # Personality traits
         if self.personality:
@@ -152,7 +144,9 @@ class AgentDNA(BaseModel):
 
         # Communication style and tone
         if self.communication_style != "conversational" or self.response_tone != "friendly":
-            prompt_sections.append(f"\nYour communication style is {self.communication_style} with a {self.response_tone} tone.")
+            prompt_sections.append(
+                f"\nYour communication style is {self.communication_style} with a {self.response_tone} tone."
+            )
 
         # Behavioral patterns
         if self.behavioral_patterns:
@@ -173,14 +167,20 @@ class AgentDNA(BaseModel):
 
         # Knowledge domains
         if self.knowledge_domains:
-            prompt_sections.append(f"\nYour areas of expertise: {', '.join(self.knowledge_domains)}")
+            prompt_sections.append(
+                f"\nYour areas of expertise: {', '.join(self.knowledge_domains)}"
+            )
 
         # Response formatting
         if self.response_format_preferences:
-            prompt_sections.append(f"\nResponse format preferences: {', '.join(self.response_format_preferences)}")
+            prompt_sections.append(
+                f"\nResponse format preferences: {', '.join(self.response_format_preferences)}"
+            )
 
         # General guidance
-        prompt_sections.append("\nBe consistent with your personality and focus on your core purpose while being helpful and engaging.")
+        prompt_sections.append(
+            "\nBe consistent with your personality and focus on your core purpose while being helpful and engaging."
+        )
 
         return "\n".join(prompt_sections)
 
@@ -207,15 +207,11 @@ class AgentTemplate(BaseModel):
 
     # Customization options
     customizable_fields: list[str] = Field(
-        default_factory=list,
-        description="Which DNA fields users can modify"
+        default_factory=list, description="Which DNA fields users can modify"
     )
 
     # Required user inputs
-    required_inputs: list[str] = Field(
-        default_factory=list,
-        description="Fields user must provide"
-    )
+    required_inputs: list[str] = Field(default_factory=list, description="Fields user must provide")
 
     def instantiate(self, user_inputs: dict[str, str]) -> AgentDNA:
         """Create specific agent instance from template and user inputs"""
@@ -239,10 +235,10 @@ TELEGRAM_BOT_TEMPLATE = AgentTemplate(
         purpose="Provide helpful assistance and friendly conversation to Telegram users",
         personality=[AgentPersonality.HELPFUL, AgentPersonality.CASUAL],
         capabilities=[AgentCapability.CHAT, AgentCapability.IMAGE_ANALYSIS],
-        target_platform=PlatformTarget.TELEGRAM
+        target_platform=PlatformTarget.TELEGRAM,
     ),
     customizable_fields=["name", "purpose", "personality"],
-    required_inputs=["name", "purpose"]
+    required_inputs=["name", "purpose"],
 )
 
 TASK_ASSISTANT_TEMPLATE = AgentTemplate(
@@ -257,10 +253,10 @@ TASK_ASSISTANT_TEMPLATE = AgentTemplate(
             AgentCapability.CHAT,
             AgentCapability.SCHEDULING,
             AgentCapability.REMINDERS,
-            AgentCapability.CALCULATIONS
+            AgentCapability.CALCULATIONS,
         ],
-        target_platform=PlatformTarget.TELEGRAM
+        target_platform=PlatformTarget.TELEGRAM,
     ),
     customizable_fields=["name", "personality"],
-    required_inputs=["name"]
+    required_inputs=["name"],
 )

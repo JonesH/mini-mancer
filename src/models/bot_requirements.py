@@ -14,14 +14,16 @@ from pydantic import BaseModel, Field
 
 class BotComplexity(Enum):
     """Bot complexity levels"""
-    SIMPLE = "simple"      # Quick creation, basic personality
+
+    SIMPLE = "simple"  # Quick creation, basic personality
     STANDARD = "standard"  # Moderate requirements gathering
-    COMPLEX = "complex"    # Full architect mode with extensive requirements
+    COMPLEX = "complex"  # Full architect mode with extensive requirements
     ENTERPRISE = "enterprise"  # Maximum sophistication and validation
 
 
 class ToolCategory(Enum):
     """Categories of available tools"""
+
     PRODUCTIVITY = "productivity"
     COMMUNICATION = "communication"
     RESEARCH = "research"
@@ -33,6 +35,7 @@ class ToolCategory(Enum):
 
 class PersonalityTrait(Enum):
     """Sophisticated personality traits beyond simple descriptors"""
+
     ANALYTICAL = "analytical"
     EMPATHETIC = "empathetic"
     ENTHUSIASTIC = "enthusiastic"
@@ -49,6 +52,7 @@ class PersonalityTrait(Enum):
 
 class CommunicationStyle(Enum):
     """Communication style preferences"""
+
     FORMAL = "formal"
     CASUAL = "casual"
     TECHNICAL = "technical"
@@ -61,6 +65,7 @@ class CommunicationStyle(Enum):
 
 class BotTool(BaseModel):
     """Individual bot tool specification"""
+
     name: str
     category: ToolCategory
     description: str
@@ -70,6 +75,7 @@ class BotTool(BaseModel):
 
 class UseCase(BaseModel):
     """Specific use case scenario for the bot"""
+
     scenario: str
     user_input_example: str
     expected_response_style: str
@@ -86,19 +92,19 @@ class BotRequirements(BaseModel):
     complexity_level: BotComplexity
 
     # Personality Architecture
-    core_traits: list[PersonalityTrait] = Field(min_items=3, max_items=5)
+    core_traits: list[PersonalityTrait] = Field(default_factory=list, min_length=3, max_length=5)
     communication_style: CommunicationStyle
     response_tone: str  # "friendly", "professional", "quirky", etc.
     behavioral_patterns: list[str] = Field(default_factory=list)
     personality_quirks: list[str] = Field(default_factory=list)
 
     # Functional Requirements
-    primary_use_cases: list[UseCase] = Field(min_items=1, max_items=5)
+    primary_use_cases: list[UseCase] = Field(default_factory=list, min_length=1, max_length=5)
     required_knowledge_domains: list[str] = Field(default_factory=list)
     response_format_preferences: list[str] = Field(default_factory=list)
 
     # Tool Strategy
-    selected_tools: list[BotTool] = Field(max_items=3)
+    selected_tools: list[BotTool] = Field(default_factory=list, max_length=3)
     tool_integration_strategy: str
 
     # Constraints and Boundaries
@@ -123,7 +129,7 @@ class RequirementsValidator:
     def validate_requirements(requirements: BotRequirements) -> dict[str, Any]:
         """
         Validate bot requirements and return validation report
-        
+
         Returns:
             dict with validation status, score, and recommendations
         """
@@ -178,9 +184,9 @@ class RequirementsValidator:
 
         # Determine if OpenServ workflow is needed
         openserv_required = (
-            requirements.complexity_level in [BotComplexity.COMPLEX, BotComplexity.ENTERPRISE] or
-            len(requirements.selected_tools) > 1 or
-            len(requirements.primary_use_cases) > 2
+            requirements.complexity_level in [BotComplexity.COMPLEX, BotComplexity.ENTERPRISE]
+            or len(requirements.selected_tools) > 1
+            or len(requirements.primary_use_cases) > 2
         )
 
         requirements.estimated_complexity_score = score
@@ -194,7 +200,7 @@ class RequirementsValidator:
             "issues": issues,
             "recommendations": recommendations,
             "openserv_required": openserv_required,
-            "quality_level": RequirementsValidator._get_quality_level(score)
+            "quality_level": RequirementsValidator._get_quality_level(score),
         }
 
     @staticmethod
@@ -303,12 +309,20 @@ Tool integration strategy: {requirements.tool_integration_strategy}
             "model": "gpt-4o-mini",  # Default model
             "markdown": True,
             "add_history_to_messages": True,
-            "num_history_responses": 3 if requirements.complexity_level in [BotComplexity.COMPLEX, BotComplexity.ENTERPRISE] else 1,
+            "num_history_responses": (
+                3
+                if requirements.complexity_level
+                in [BotComplexity.COMPLEX, BotComplexity.ENTERPRISE]
+                else 1
+            ),
             "add_datetime_to_instructions": True,
-            "max_tool_calls": len(requirements.selected_tools) * 2 if requirements.selected_tools else 1,
-            "show_tool_calls": requirements.complexity_level in [BotComplexity.COMPLEX, BotComplexity.ENTERPRISE],
+            "max_tool_calls": (
+                len(requirements.selected_tools) * 2 if requirements.selected_tools else 1
+            ),
+            "show_tool_calls": requirements.complexity_level
+            in [BotComplexity.COMPLEX, BotComplexity.ENTERPRISE],
             "debug_mode": False,
-            "structured_outputs": requirements.complexity_level == BotComplexity.ENTERPRISE
+            "structured_outputs": requirements.complexity_level == BotComplexity.ENTERPRISE,
         }
 
 
@@ -318,61 +332,61 @@ AVAILABLE_TOOLS = {
         name="Weather Oracle",
         category=ToolCategory.RESEARCH,
         description="Real-time weather insights with personality",
-        integration_complexity="simple"
+        integration_complexity="simple",
     ),
     "wisdom_dispenser": BotTool(
         name="Wisdom Dispenser",
         category=ToolCategory.COMMUNICATION,
         description="Curated quotes, facts, and daily insights",
-        integration_complexity="simple"
+        integration_complexity="simple",
     ),
     "dice_commander": BotTool(
         name="Dice Commander",
         category=ToolCategory.ENTERTAINMENT,
         description="Gaming, decision-making, random number magic",
-        integration_complexity="simple"
+        integration_complexity="simple",
     ),
     "time_guardian": BotTool(
         name="Time Guardian",
         category=ToolCategory.PRODUCTIVITY,
         description="Pomodoro timers, reminders, productivity tracking",
-        integration_complexity="moderate"
+        integration_complexity="moderate",
     ),
     "calculator_sage": BotTool(
         name="Calculator Sage",
         category=ToolCategory.ANALYTICAL,
         description="Mathematical computations with flair",
-        integration_complexity="simple"
+        integration_complexity="simple",
     ),
     "memory_keeper": BotTool(
         name="Memory Keeper",
         category=ToolCategory.PRODUCTIVITY,
         description="Note-taking, list management, personal assistant features",
-        integration_complexity="moderate"
+        integration_complexity="moderate",
     ),
     "web_searcher": BotTool(
         name="Web Searcher",
         category=ToolCategory.RESEARCH,
         description="Real-time internet research and information gathering",
         integration_complexity="complex",
-        required_apis=["search_api"]
+        required_apis=["search_api"],
     ),
     "code_assistant": BotTool(
         name="Code Assistant",
         category=ToolCategory.TECHNICAL,
         description="Programming help, code review, and technical guidance",
-        integration_complexity="moderate"
+        integration_complexity="moderate",
     ),
     "language_tutor": BotTool(
         name="Language Tutor",
         category=ToolCategory.COMMUNICATION,
         description="Translation, language learning, and communication help",
-        integration_complexity="moderate"
+        integration_complexity="moderate",
     ),
     "creative_writer": BotTool(
         name="Creative Writer",
         category=ToolCategory.CREATIVE,
         description="Story generation, creative writing, and content creation",
-        integration_complexity="simple"
-    )
+        integration_complexity="simple",
+    ),
 }
