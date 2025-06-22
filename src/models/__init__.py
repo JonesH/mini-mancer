@@ -1,8 +1,8 @@
-from .agent_dna import AgentDNA, AgentTemplate, TELEGRAM_BOT_TEMPLATE, TASK_ASSISTANT_TEMPLATE
+from .agent_dna import TASK_ASSISTANT_TEMPLATE, TELEGRAM_BOT_TEMPLATE, AgentDNA, AgentTemplate
 
 __all__ = [
     "AgentDNA",
-    "AgentTemplate", 
+    "AgentTemplate",
     "TELEGRAM_BOT_TEMPLATE",
     "TASK_ASSISTANT_TEMPLATE"
 ]

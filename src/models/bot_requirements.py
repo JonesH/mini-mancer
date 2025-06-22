@@ -7,7 +7,8 @@ and compilation for creating high-quality, purpose-built bots.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -22,7 +23,7 @@ class BotComplexity(Enum):
 class ToolCategory(Enum):
     """Categories of available tools"""
     PRODUCTIVITY = "productivity"
-    COMMUNICATION = "communication" 
+    COMMUNICATION = "communication"
     RESEARCH = "research"
     CREATIVE = "creative"
     TECHNICAL = "technical"
@@ -65,8 +66,8 @@ class BotTool(BaseModel):
     description: str
     integration_complexity: str  # "simple", "moderate", "complex"
     required_apis: list[str] = Field(default_factory=list)
-    
-    
+
+
 class UseCase(BaseModel):
     """Specific use case scenario for the bot"""
     scenario: str
@@ -77,38 +78,38 @@ class UseCase(BaseModel):
 
 class BotRequirements(BaseModel):
     """Comprehensive bot requirements specification"""
-    
+
     # Core Identity
     name: str
     purpose: str
     target_audience: str
     complexity_level: BotComplexity
-    
+
     # Personality Architecture
     core_traits: list[PersonalityTrait] = Field(min_items=3, max_items=5)
     communication_style: CommunicationStyle
     response_tone: str  # "friendly", "professional", "quirky", etc.
     behavioral_patterns: list[str] = Field(default_factory=list)
     personality_quirks: list[str] = Field(default_factory=list)
-    
+
     # Functional Requirements
     primary_use_cases: list[UseCase] = Field(min_items=1, max_items=5)
     required_knowledge_domains: list[str] = Field(default_factory=list)
     response_format_preferences: list[str] = Field(default_factory=list)
-    
+
     # Tool Strategy
     selected_tools: list[BotTool] = Field(max_items=3)
     tool_integration_strategy: str
-    
+
     # Constraints and Boundaries
     content_boundaries: list[str] = Field(default_factory=list)
     technical_limitations: list[str] = Field(default_factory=list)
     response_length_preference: str = "moderate"  # "concise", "moderate", "detailed"
-    
+
     # Quality Assurance
     test_scenarios: list[str] = Field(default_factory=list)
     success_metrics: list[str] = Field(default_factory=list)
-    
+
     # Metadata
     created_at: datetime = Field(default_factory=datetime.now)
     estimated_complexity_score: float = 0.0
@@ -117,7 +118,7 @@ class BotRequirements(BaseModel):
 
 class RequirementsValidator:
     """Validates and scores bot requirements for quality and completeness"""
-    
+
     @staticmethod
     def validate_requirements(requirements: BotRequirements) -> dict[str, Any]:
         """
@@ -129,29 +130,29 @@ class RequirementsValidator:
         score = 0.0
         issues = []
         recommendations = []
-        
+
         # Core identity validation
         if len(requirements.purpose) > 20:
             score += 10
         else:
             issues.append("Purpose description is too brief")
-            
+
         if len(requirements.target_audience) > 10:
             score += 10
         else:
             issues.append("Target audience needs more detail")
-            
+
         # Personality depth validation
         if len(requirements.core_traits) >= 3:
             score += 15
         else:
             issues.append("Need at least 3 core personality traits")
-            
+
         if len(requirements.behavioral_patterns) > 0:
             score += 10
         else:
             recommendations.append("Consider adding behavioral patterns for richer personality")
-            
+
         # Use case validation
         if len(requirements.primary_use_cases) > 0:
             score += 20
@@ -160,7 +161,7 @@ class RequirementsValidator:
                     score += 5
         else:
             issues.append("Need at least one detailed use case")
-            
+
         # Tool strategy validation
         if len(requirements.selected_tools) > 0:
             score += 15
@@ -168,23 +169,23 @@ class RequirementsValidator:
                 score += 10
         else:
             issues.append("Need to select appropriate tools")
-            
+
         # Quality assurance validation
         if len(requirements.test_scenarios) > 0:
             score += 10
         else:
             recommendations.append("Add test scenarios for better validation")
-            
+
         # Determine if OpenServ workflow is needed
         openserv_required = (
             requirements.complexity_level in [BotComplexity.COMPLEX, BotComplexity.ENTERPRISE] or
             len(requirements.selected_tools) > 1 or
             len(requirements.primary_use_cases) > 2
         )
-        
+
         requirements.estimated_complexity_score = score
         requirements.openserv_workflow_required = openserv_required
-        
+
         return {
             "valid": len(issues) == 0,
             "score": score,
@@ -195,7 +196,7 @@ class RequirementsValidator:
             "openserv_required": openserv_required,
             "quality_level": RequirementsValidator._get_quality_level(score)
         }
-    
+
     @staticmethod
     def _get_quality_level(score: float) -> str:
         """Determine quality level based on score"""
@@ -211,11 +212,11 @@ class RequirementsValidator:
 
 class BotArchitect:
     """Handles sophisticated bot architecture and compilation"""
-    
+
     @staticmethod
     def generate_system_prompt(requirements: BotRequirements) -> str:
         """Generate comprehensive system prompt from requirements"""
-        
+
         # Core identity section
         identity_section = f"""
 You are {requirements.name}, {requirements.purpose}.
@@ -227,7 +228,7 @@ Core traits: {', '.join([trait.value for trait in requirements.core_traits])}
 Communication style: {requirements.communication_style.value}
 Response tone: {requirements.response_tone}
 """
-        
+
         # Behavioral patterns
         if requirements.behavioral_patterns:
             behavior_section = f"""
@@ -236,7 +237,7 @@ Response tone: {requirements.response_tone}
 """
         else:
             behavior_section = ""
-            
+
         # Personality quirks
         if requirements.personality_quirks:
             quirks_section = f"""
@@ -245,7 +246,7 @@ Response tone: {requirements.response_tone}
 """
         else:
             quirks_section = ""
-            
+
         # Knowledge domains
         if requirements.required_knowledge_domains:
             knowledge_section = f"""
@@ -254,19 +255,19 @@ Response tone: {requirements.response_tone}
 """
         else:
             knowledge_section = ""
-            
+
         # Response preferences
         response_section = f"""
 ## Response Guidelines
 Response length preference: {requirements.response_length_preference}
 """
-        
+
         if requirements.response_format_preferences:
             response_section += f"""
 Format preferences:
 {chr(10).join([f"- {pref}" for pref in requirements.response_format_preferences])}
 """
-        
+
         # Boundaries and limitations
         if requirements.content_boundaries:
             boundaries_section = f"""
@@ -275,7 +276,7 @@ Format preferences:
 """
         else:
             boundaries_section = ""
-            
+
         # Tool capabilities
         if requirements.selected_tools:
             tools_section = f"""
@@ -286,16 +287,16 @@ Tool integration strategy: {requirements.tool_integration_strategy}
 """
         else:
             tools_section = ""
-            
+
         # Combine all sections
         full_prompt = f"{identity_section}{behavior_section}{quirks_section}{knowledge_section}{response_section}{boundaries_section}{tools_section}"
-        
+
         return full_prompt.strip()
-    
+
     @staticmethod
     def generate_agno_agent_config(requirements: BotRequirements) -> dict[str, Any]:
         """Generate Agno agent configuration from requirements"""
-        
+
         return {
             "name": requirements.name,
             "description": BotArchitect.generate_system_prompt(requirements),
@@ -320,7 +321,7 @@ AVAILABLE_TOOLS = {
         integration_complexity="simple"
     ),
     "wisdom_dispenser": BotTool(
-        name="Wisdom Dispenser", 
+        name="Wisdom Dispenser",
         category=ToolCategory.COMMUNICATION,
         description="Curated quotes, facts, and daily insights",
         integration_complexity="simple"

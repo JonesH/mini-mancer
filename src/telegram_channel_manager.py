@@ -3,10 +3,10 @@ Telegram Channel Auto-Creation and Management
 Simple utility for creating test logging channels
 """
 
-import os
-import logging
 import asyncio
-from typing import Optional, Dict, List
+import logging
+import os
+
 from telegram import Bot
 from telegram.error import TelegramError
 
@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 
 class ChannelManager:
     """Simple Telegram channel management for testing"""
-    
+
     def __init__(self, bot_token: str):
         self.bot = Bot(token=bot_token)
-        self.created_channels: Dict[str, str] = {}  # name -> chat_id
-    
-    async def create_test_channel(self, channel_name: str, description: str = None) -> Optional[str]:
+        self.created_channels: dict[str, str] = {}  # name -> chat_id
+
+    async def create_test_channel(self, channel_name: str, description: str = None) -> str | None:
         """
         Create a simple test channel
         Note: This requires the bot to have appropriate permissions
@@ -30,9 +30,9 @@ class ChannelManager:
             # This is a simplified version that works with existing channels
             logger.info(f"📢 Test channel '{channel_name}' should be created manually")
             logger.info(f"   1. Create channel '@{channel_name}' in Telegram")
-            logger.info(f"   2. Add bot as admin")
-            logger.info(f"   3. Set channel ID in environment as TEST_CHANNEL_ID")
-            
+            logger.info("   2. Add bot as admin")
+            logger.info("   3. Set channel ID in environment as TEST_CHANNEL_ID")
+
             # Check if channel already exists in environment
             channel_id = os.getenv("TEST_CHANNEL_ID") or os.getenv("ERROR_CHANNEL_ID")
             if channel_id:
@@ -49,13 +49,13 @@ class ChannelManager:
                     return channel_id
                 except TelegramError as e:
                     logger.error(f"❌ Cannot access channel {channel_id}: {e}")
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"❌ Error setting up test channel: {e}")
             return None
-    
+
     async def send_test_log(self, message: str, channel_name: str = "default") -> bool:
         """Send a test log message to a channel"""
         try:
@@ -63,18 +63,18 @@ class ChannelManager:
             if not channel_id:
                 logger.debug(f"No channel configured for '{channel_name}'")
                 return False
-            
+
             await self.bot.send_message(
                 chat_id=channel_id,
                 text=f"🧪 **Test Log**\n\n{message}",
                 parse_mode='Markdown'
             )
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Error sending test log: {e}")
             return False
-    
+
     def get_setup_instructions(self) -> str:
         """Get instructions for manual channel setup"""
         return """
@@ -119,12 +119,12 @@ async def test_channel_setup():
     if not bot_token:
         print("❌ No bot token found in environment")
         return
-    
+
     manager = ChannelManager(bot_token)
-    
+
     # Try to set up test channel
     channel_id = await manager.create_test_channel("test_logs", "Mini-Mancer test logging")
-    
+
     if channel_id:
         # Send test message
         success = await manager.send_test_log("✅ Channel setup successful! Test monitoring is ready.")
@@ -138,10 +138,10 @@ async def test_channel_setup():
 
 
 # Global channel manager instance
-_channel_manager: Optional[ChannelManager] = None
+_channel_manager: ChannelManager | None = None
 
 
-def get_channel_manager() -> Optional[ChannelManager]:
+def get_channel_manager() -> ChannelManager | None:
     """Get global channel manager instance"""
     global _channel_manager
     if _channel_manager is None:

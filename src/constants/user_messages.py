@@ -13,7 +13,7 @@ I'm ready to create custom Telegram bots for you.
 <b>Examples:</b> <code>create helpful bot named Assistant</code> or <code>make professional support bot</code>
 
 Just tell me what bot you need! ✨""",
-    
+
     "quick_creation": """🚀 <b>Quick Bot Creation</b>
 
 Simply tell me:
@@ -22,7 +22,7 @@ Simply tell me:
 • <code>new friendly bot for customer service</code>
 
 I'll create it instantly with smart defaults! ⚡""",
-    
+
     "personalities": """🎭 <b>Available Bot Personalities:</b>
 
 🤝 <b>Helpful</b> - Supportive, friendly, assistant-like
@@ -33,7 +33,7 @@ I'll create it instantly with smart defaults! ⚡""",
 🧘 <b>Calm</b> - Patient, gentle, peaceful
 
 Choose the personality that fits your bot's purpose!""",
-    
+
     "examples": """💡 <b>Bot Creation Examples:</b>
 
 <b>Natural Language:</b>
@@ -55,11 +55,11 @@ Try any format - I understand them all! 🎯"""
 # Bot creation success messages
 BOT_CREATION_MESSAGES = {
     "instant_success": "✅ <b>{bot_name}</b> created successfully!\n\n🤖 <b>Purpose:</b> {bot_purpose}\n😊 <b>Style:</b> {personality}\n🔗 https://t.me/{bot_username}\n\nBot deploying shortly!",
-    
+
     "advanced_compilation": "🏗️ <b>{bot_name}</b> compilation started!\n\n📊 <b>Quality:</b> {quality_score}/100\n🔧 <b>Status:</b> Compiling...\n⏱️ <b>ETA:</b> 2-3 minutes\n\n✨ Your digital companion will emerge shortly!",
-    
+
     "advanced_success": "✅ <b>{bot_name}</b> awakened!\n\n🧠 <b>Traits:</b> {traits}\n🛠️ <b>Tools:</b> {tools}\n\n🔗 Ready for deployment!",
-    
+
     "requirements_invalid": "❌ <b>Requirements Need Work</b>\n\n{issues}\n\nPlease provide more details."
 }
 
@@ -91,7 +91,7 @@ MEDIA_MESSAGES = {
 # Inline keyboard button texts
 KEYBOARD_BUTTONS = {
     "create_helper": "🤝 Create Helper Bot",
-    "create_support": "💼 Create Support Bot", 
+    "create_support": "💼 Create Support Bot",
     "create_fun": "🎉 Create Fun Bot",
     "create_calm": "🧘 Create Calm Bot",
     "custom_builder": "⚙️ Custom Builder",
@@ -119,7 +119,7 @@ def format_bot_success(bot_name: str, bot_purpose: str, personality: str, bot_us
     """Format instant bot creation success message"""
     return BOT_CREATION_MESSAGES["instant_success"].format(
         bot_name=bot_name,
-        bot_purpose=bot_purpose, 
+        bot_purpose=bot_purpose,
         personality=personality,
         bot_username=bot_username
     )

@@ -3,16 +3,15 @@ Real-time Test Monitoring Dashboard
 WebSocket-based live monitoring of bot interactions during testing
 """
 
-import asyncio
 import json
 import logging
 import time
-from datetime import datetime
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
 from collections import deque
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +21,12 @@ class TestEvent:
     """Represents a test event for monitoring"""
     timestamp: float
     event_type: str  # 'api_call', 'bot_message', 'ai_response', 'error', 'test_start', 'test_end'
-    bot_token: Optional[str]
-    user_id: Optional[str]
-    chat_id: Optional[str]
+    bot_token: str | None
+    user_id: str | None
+    chat_id: str | None
     content: str
-    metadata: Dict[str, Any]
-    
+    metadata: dict[str, Any]
+
     def to_dict(self):
         return {
             'timestamp': self.timestamp,
@@ -43,18 +42,18 @@ class TestEvent:
 
 class TestMonitor:
     """Real-time test monitoring system"""
-    
+
     def __init__(self, max_events: int = 1000):
         self.events: deque = deque(maxlen=max_events)
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
         self.is_monitoring = False
-        
-    async def log_event(self, 
+
+    async def log_event(self,
                        event_type: str,
                        content: str,
-                       bot_token: Optional[str] = None,
-                       user_id: Optional[str] = None,
-                       chat_id: Optional[str] = None,
+                       bot_token: str | None = None,
+                       user_id: str | None = None,
+                       chat_id: str | None = None,
                        **metadata):
         """Log a test event and broadcast to connected clients"""
         event = TestEvent(
@@ -66,34 +65,34 @@ class TestMonitor:
             content=content,
             metadata=metadata
         )
-        
+
         self.events.append(event)
-        
+
         # Broadcast to all connected WebSocket clients
         if self.active_connections:
             await self._broadcast_event(event)
-    
+
     async def _broadcast_event(self, event: TestEvent):
         """Broadcast event to all connected WebSocket clients"""
         message = json.dumps(event.to_dict())
         disconnected = []
-        
+
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
             except Exception as e:
                 logger.warning(f"Failed to send to WebSocket client: {e}")
                 disconnected.append(connection)
-        
+
         # Remove disconnected clients
         for conn in disconnected:
             self.active_connections.remove(conn)
-    
+
     async def connect_websocket(self, websocket: WebSocket):
         """Add new WebSocket connection"""
         await websocket.accept()
         self.active_connections.append(websocket)
-        
+
         # Send recent events to new connection
         recent_events = list(self.events)[-50:]  # Last 50 events
         for event in recent_events:
@@ -102,29 +101,29 @@ class TestMonitor:
             except Exception as e:
                 logger.warning(f"Failed to send recent events: {e}")
                 break
-    
+
     def disconnect_websocket(self, websocket: WebSocket):
         """Remove WebSocket connection"""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-    
-    def get_events(self, limit: int = 100, event_type: Optional[str] = None) -> List[Dict]:
+
+    def get_events(self, limit: int = 100, event_type: str | None = None) -> list[dict]:
         """Get recent events, optionally filtered by type"""
         events = list(self.events)
-        
+
         if event_type:
             events = [e for e in events if e.event_type == event_type]
-        
+
         return [e.to_dict() for e in events[-limit:]]
-    
-    def get_stats(self) -> Dict[str, Any]:
+
+    def get_stats(self) -> dict[str, Any]:
         """Get monitoring statistics"""
         events = list(self.events)
-        
+
         event_counts = {}
         for event in events:
             event_counts[event.event_type] = event_counts.get(event.event_type, 0) + 1
-        
+
         return {
             'total_events': len(events),
             'active_connections': len(self.active_connections),
