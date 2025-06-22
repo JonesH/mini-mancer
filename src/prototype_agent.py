@@ -7,6 +7,7 @@ Leverages existing TelegramBotTemplate and AgentDNA system.
 
 import os
 import re
+import logging
 from typing import Any
 from datetime import datetime
 
@@ -31,6 +32,12 @@ from .constants import (
 
 # Load environment variables
 load_dotenv()
+
+# Configure logger
+logger = logging.getLogger(__name__)
+
+# Import error handling utilities
+from .utils import safe_telegram_operation, ErrorContext, log_error_with_context
 
 
 
@@ -98,15 +105,15 @@ class PrototypeAgent:
                 raise ValueError("BOT_TOKEN_1 cannot be the same as BOT_TOKEN")
         else:
             # No separate token available - created bots will be disabled
-            print("⚠️  BOT_TOKEN_1 not configured - created bots will be disabled")
+            logger.warning("⚠️  BOT_TOKEN_1 not configured - created bots will be disabled")
         
         # Log token status
-        print(f"🔑 Factory token: {self.factory_token[:15]}...")
+        logger.info(f"🔑 Factory token: {self.factory_token[:15]}...")
         if self.created_bot_token:
-            print(f"🔑 Created bot token: {self.created_bot_token[:15]}...")
-            print("✅ Token validation passed - both factory and created bots enabled")
+            logger.info(f"🔑 Created bot token: {self.created_bot_token[:15]}...")
+            logger.info("✅ Token validation passed - both factory and created bots enabled")
         else:
-            print("⚠️  Created bot functionality disabled - only factory bot available")
+            logger.warning("⚠️  Created bot functionality disabled - only factory bot available")
         
         # Track the currently active created bot with enhanced state management
         self.active_created_bot: TelegramBotTemplate | None = None
@@ -138,7 +145,7 @@ class PrototypeAgent:
         # Initialize thinking tool for BotMother
         self.thinking_tool = ThinkingTool()
         
-        print("🧠 BotMother enhanced with GPT-4.1 and advanced thinking capabilities")
+        logger.info("🧠 BotMother enhanced with GPT-4.1 and advanced thinking capabilities")
         
         # Add bot creation tool
         self._register_bot_creation_tool()
@@ -186,7 +193,7 @@ class PrototypeAgent:
         # Note: In actual implementation, these would be properly registered with Agno
         # For now, these are available through direct method calls in chat handling
         
-        print("🛠️ BotMother tools registered: deep thinking, requirements analysis, bot creation")
+        logger.info("🛠️ BotMother tools registered: deep thinking, requirements analysis, bot creation")
         
     def create_new_bot_instant(self, bot_name: str, bot_purpose: str, personality: str = "helpful") -> str:
         """
@@ -256,14 +263,14 @@ class PrototypeAgent:
             self.created_bot_state = "created"  # Successfully created, ready to start
             
             # Log the new bot creation
-            print(f"\n🔧 New Bot Created:")
-            print(f"   Name: {bot_name}")
-            print(f"   Purpose: {bot_purpose}")
-            print(f"   Personality: {personality_trait.value}")
-            print(f"   Capabilities: {[cap.value for cap in new_bot_dna.capabilities]}")
-            print(f"   Platform: {new_bot_dna.target_platform.value}")
-            print(f"   Token: BOT_TOKEN_1")
-            print()
+            logger.info(f"\n🔧 New Bot Created:")
+            logger.info(f"   Name: {bot_name}")
+            logger.info(f"   Purpose: {bot_purpose}")
+            logger.info(f"   Personality: {personality_trait.value}")
+            logger.info(f"   Capabilities: {[cap.value for cap in new_bot_dna.capabilities]}")
+            logger.info(f"   Platform: {new_bot_dna.target_platform.value}")
+            logger.info(f"   Token: BOT_TOKEN_1")
+            logger.info("")
             
             # Note: Actual bot starting will be handled in main.py
             # For now, return placeholder username
@@ -273,7 +280,7 @@ class PrototypeAgent:
             # Reset state on error
             self.created_bot_state = "error"
             self.active_created_bot = None
-            print(f"❌ Bot creation failed: {e}")
+            logger.error(f"❌ Bot creation failed: {e}")
             return ERROR_MESSAGES["bot_creation_error"].format(error=str(e))
     
     def create_new_bot_advanced(self, requirements: BotRequirements) -> str:
@@ -301,12 +308,12 @@ class PrototypeAgent:
             system_prompt = BotArchitect.generate_system_prompt(requirements)
             agno_config = BotArchitect.generate_agno_agent_config(requirements)
             
-            print(f"\n🏗️  Advanced Bot Creation:")
-            print(f"   Name: {requirements.name}")
-            print(f"   Complexity: {requirements.complexity_level.value}")
-            print(f"   Quality Score: {validation_result['score']}/100")
-            print(f"   Tools: {[tool.name for tool in requirements.selected_tools]}")
-            print(f"   OpenServ Required: {requirements.openserv_workflow_required}")
+            logger.info(f"\n🏗️  Advanced Bot Creation:")
+            logger.info(f"   Name: {requirements.name}")
+            logger.info(f"   Complexity: {requirements.complexity_level.value}")
+            logger.info(f"   Quality Score: {validation_result['score']}/100")
+            logger.info(f"   Tools: {[tool.name for tool in requirements.selected_tools]}")
+            logger.info(f"   OpenServ Required: {requirements.openserv_workflow_required}")
             
             if requirements.openserv_workflow_required:
                 # For now, simulate OpenServ workflow
@@ -369,7 +376,7 @@ class PrototypeAgent:
                 return format_advanced_success(requirements.name, traits, tools)
                 
         except Exception as e:
-            print(f"❌ Error in advanced bot creation: {e}")
+            logger.error(f"❌ Error in advanced bot creation: {e}")
             return ERROR_MESSAGES["advanced_creation_error"].format(error=str(e))
     
     async def start_created_bot(self, bot_template: TelegramBotTemplate) -> str:
@@ -380,74 +387,62 @@ class PrototypeAgent:
         try:
             # Validate state before starting
             if self.created_bot_state not in ["created", "error"]:
-                print(f"❌ Cannot start bot in state: {self.created_bot_state}")
+                logger.error(f"❌ Cannot start bot in state: {self.created_bot_state}")
                 return ""
             
             if not self.created_bot_token:
-                print("❌ No created bot token available")
+                logger.error("❌ No created bot token available")
                 return ""
             
             # Update state to starting
             self.created_bot_state = "starting"
-            print(f"🚀 Starting created bot...")
+            logger.info(f"🚀 Starting created bot...")
             
             # Create independent Telegram application for created bot
             application = Application.builder().token(self.created_bot_token).build()
             self.created_bot_application = application
             
             # Add message handler that uses the bot template
+            @safe_telegram_operation("created_bot_message", "Sorry, I encountered an error processing your message.")
             async def handle_created_bot_message(update, context):
                 """Handle messages for the created bot"""
-                try:
-                    user_id = str(update.effective_user.id)
-                    message_text = update.message.text
-                    print(f"📨 [CREATED BOT] Message from user {user_id}: '{message_text}'")
-                    
-                    # Use bot template to generate response
-                    response_text = await bot_template.handle_message(update.message.to_dict())
-                    
-                    # Send response
-                    await update.message.reply_text(response_text)
-                    print(f"📤 [CREATED BOT] Sent response to user {user_id}")
-                    
-                except Exception as e:
-                    print(f"❌ [CREATED BOT] Error handling message: {e}")
-                    await update.message.reply_text("Sorry, I encountered an error processing your message.")
+                user_id = str(update.effective_user.id)
+                message_text = update.message.text
+                logger.info(f"📨 [CREATED BOT] Message from user {user_id}: '{message_text}'")
+                
+                # Use bot template to generate response
+                response_text = await bot_template.handle_message(update.message.to_dict())
+                
+                # Send response
+                await update.message.reply_text(response_text)
+                logger.info(f"📤 [CREATED BOT] Sent response to user {user_id}")
             
             # Add handlers for different message types
+            @safe_telegram_operation("created_bot_photo", "Sorry, I had trouble processing your photo.")
             async def handle_created_bot_photo(update, context):
                 """Handle photo messages for the created bot"""
-                try:
-                    user_id = str(update.effective_user.id)
-                    print(f"📸 [CREATED BOT] Photo from user {user_id}")
-                    
-                    # Use bot template to handle photo
-                    response_text = await bot_template.handle_photo(update.message.to_dict())
-                    
-                    # Send response
-                    await update.message.reply_text(response_text)
-                    print(f"📤 [CREATED BOT] Sent photo response to user {user_id}")
-                    
-                except Exception as e:
-                    print(f"❌ [CREATED BOT] Error handling photo: {e}")
-                    await update.message.reply_text("Sorry, I had trouble processing your photo.")
+                user_id = str(update.effective_user.id)
+                logger.info(f"📸 [CREATED BOT] Photo from user {user_id}")
+                
+                # Use bot template to handle photo
+                response_text = await bot_template.handle_photo(update.message.to_dict())
+                
+                # Send response
+                await update.message.reply_text(response_text)
+                logger.info(f"📤 [CREATED BOT] Sent photo response to user {user_id}")
             
+            @safe_telegram_operation("created_bot_document", "Sorry, I had trouble processing your file.")
             async def handle_created_bot_document(update, context):
                 """Handle document messages for the created bot"""
-                try:
-                    user_id = str(update.effective_user.id)
-                    print(f"📎 [CREATED BOT] Document from user {user_id}")
-                    
-                    # Use bot template to handle document
-                    response_text = await bot_template.handle_document(update.message.to_dict())
-                    
-                    # Send response
-                    await update.message.reply_text(response_text)
-                    print(f"📤 [CREATED BOT] Sent document response to user {user_id}")
-                    
-                except Exception as e:
-                    print(f"❌ [CREATED BOT] Error handling document: {e}")
-                    await update.message.reply_text("Sorry, I had trouble processing your file.")
+                user_id = str(update.effective_user.id)
+                logger.info(f"📎 [CREATED BOT] Document from user {user_id}")
+                
+                # Use bot template to handle document
+                response_text = await bot_template.handle_document(update.message.to_dict())
+                
+                # Send response
+                await update.message.reply_text(response_text)
+                logger.info(f"📤 [CREATED BOT] Sent document response to user {user_id}")
             
             # Register all handlers
             application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_created_bot_message))
@@ -458,37 +453,37 @@ class PrototypeAgent:
             try:
                 bot_info = await application.bot.get_me()
                 username = bot_info.username
-                print(f"🤖 [CREATED BOT] Validated: {bot_info.first_name} | @{username}")
+                logger.info(f"🤖 [CREATED BOT] Validated: {bot_info.first_name} | @{username}")
             except Exception as e:
                 self.created_bot_state = "error"
-                print(f"❌ Failed to validate created bot token: {e}")
+                logger.error(f"❌ Failed to validate created bot token: {e}")
                 return ""
             
             # Start polling as a managed background task
             async def managed_polling():
                 try:
                     self.created_bot_state = "running"
-                    print(f"📱 [CREATED BOT] @{username} starting polling...")
+                    logger.info(f"📱 [CREATED BOT] @{username} starting polling...")
                     
                     async with application:
                         await application.start()
                         await application.updater.start_polling()
-                        print(f"✅ [CREATED BOT] @{username} is now live and polling!")
+                        logger.info(f"✅ [CREATED BOT] @{username} is now live and polling!")
                         
                         # Keep running until the state changes or we're interrupted
                         while self.created_bot_state == "running":
                             await asyncio.sleep(1)
                         
-                        print(f"🛑 [CREATED BOT] @{username} stopping polling...")
+                        logger.info(f"🛑 [CREATED BOT] @{username} stopping polling...")
                         await application.stop()
                         
                 except Exception as e:
                     self.created_bot_state = "error"
-                    print(f"❌ [CREATED BOT] Polling error for @{username}: {e}")
+                    logger.error(f"❌ [CREATED BOT] Polling error for @{username}: {e}")
                 finally:
                     if self.created_bot_state == "running":
                         self.created_bot_state = "stopped"
-                    print(f"🏁 [CREATED BOT] @{username} polling ended")
+                    logger.info(f"🏁 [CREATED BOT] @{username} polling ended")
             
             # Store the task for cleanup
             self.created_bot_start_task = asyncio.create_task(managed_polling())
@@ -499,12 +494,12 @@ class PrototypeAgent:
             if self.created_bot_state == "running":
                 return username
             else:
-                print(f"❌ Bot failed to start properly, state: {self.created_bot_state}")
+                logger.error(f"❌ Bot failed to start properly, state: {self.created_bot_state}")
                 return ""
             
         except Exception as e:
             self.created_bot_state = "error"
-            print(f"❌ Error starting created bot: {e}")
+            logger.error(f"❌ Error starting created bot: {e}")
             return ""
     
     async def stop_created_bot(self) -> str:
@@ -514,33 +509,33 @@ class PrototypeAgent:
                 return ERROR_MESSAGES["no_bot_to_stop"]
             
             if self.created_bot_state not in ["running", "starting", "error"]:
-                print(f"⚠️ Bot is in {self.created_bot_state} state, attempting to stop...")
+                logger.warning(f"⚠️ Bot is in {self.created_bot_state} state, attempting to stop...")
             
             # Set state to stopping
             old_state = self.created_bot_state
             self.created_bot_state = "stopping"
             
-            print(f"🛑 Stopping created bot (was {old_state})...")
+            logger.info(f"🛑 Stopping created bot (was {old_state})...")
             
             # Cancel the polling task if it exists
             if self.created_bot_start_task and not self.created_bot_start_task.done():
-                print("🔄 Cancelling bot polling task...")
+                logger.info("🔄 Cancelling bot polling task...")
                 self.created_bot_start_task.cancel()
                 try:
                     await self.created_bot_start_task
                 except asyncio.CancelledError:
-                    print("✅ Bot polling task cancelled")
+                    logger.info("✅ Bot polling task cancelled")
                 except Exception as e:
-                    print(f"⚠️ Error during task cancellation: {e}")
+                    logger.warning(f"⚠️ Error during task cancellation: {e}")
             
             # Stop the application if it exists
             if self.created_bot_application:
                 try:
-                    print("🔄 Stopping Telegram application...")
+                    logger.info("🔄 Stopping Telegram application...")
                     await self.created_bot_application.stop()
-                    print("✅ Telegram application stopped")
+                    logger.info("✅ Telegram application stopped")
                 except Exception as e:
-                    print(f"⚠️ Error stopping application: {e}")
+                    logger.warning(f"⚠️ Error stopping application: {e}")
             
             # Clean up resources
             self.active_created_bot = None
@@ -548,11 +543,11 @@ class PrototypeAgent:
             self.created_bot_start_task = None
             self.created_bot_state = "none"
             
-            print("✅ Created bot stopped and resources cleaned up")
+            logger.info("✅ Created bot stopped and resources cleaned up")
             return "✅ Bot stopped successfully"
             
         except Exception as e:
-            print(f"❌ Error stopping created bot: {e}")
+            logger.error(f"❌ Error stopping created bot: {e}")
             # Force cleanup even if there were errors
             self.active_created_bot = None
             self.created_bot_application = None
@@ -562,27 +557,27 @@ class PrototypeAgent:
     
     async def shutdown(self):
         """Graceful shutdown of all bot resources"""
-        print("🛑 PrototypeAgent shutdown initiated...")
+        logger.info("🛑 PrototypeAgent shutdown initiated...")
         
         try:
             # Stop any running created bots
             if self.created_bot_state in ["running", "starting"]:
-                print("🔄 Stopping created bot...")
+                logger.info("🔄 Stopping created bot...")
                 await self.stop_created_bot()
             
             # Shutdown factory bot resources
             if hasattr(self, 'telegram_bot') and self.telegram_bot:
-                print("🔄 Shutting down factory bot...")
+                logger.info("🔄 Shutting down factory bot...")
                 await self.telegram_bot.shutdown()
             
             # Clear all queues and data
             self.bot_compilation_queue.clear()
             self.completed_bot_specs.clear()
             
-            print("✅ PrototypeAgent shutdown complete")
+            logger.info("✅ PrototypeAgent shutdown complete")
             
         except Exception as e:
-            print(f"❌ Error during PrototypeAgent shutdown: {e}")
+            logger.error(f"❌ Error during PrototypeAgent shutdown: {e}")
     
     def get_status_summary(self) -> dict[str, Any]:
         """Get comprehensive status of all bot systems"""
@@ -690,7 +685,7 @@ class PrototypeAgent:
         
         # Return results if we found something useful
         if result:
-            print(f"🔍 Parsed bot creation request: {result}")
+            logger.info(f"🔍 Parsed bot creation request: {result}")
             return result
         
         return None
@@ -986,7 +981,7 @@ class PrototypeAgent:
 try:
     prototype = PrototypeAgent()
     app = prototype.app
-    print("🏭 Prototype agent initialized successfully")
+    logger.info("🏭 Prototype agent initialized successfully")
 except Exception as e:
     print(f"❌ Error initializing prototype agent: {e}")
     # Create minimal fallback app
