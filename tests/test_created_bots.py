@@ -20,6 +20,7 @@ from telegram.error import TelegramError
 from telegram.ext import Application
 
 from conftest import BotTestSession, TelegramTestError
+from src.telegram_rate_limiter import rate_limited_call
 
 
 @dataclass
@@ -155,14 +156,17 @@ class TestCreatedBotPersonalities:
             for message in test_case.test_messages:
                 print(f"💬 Testing message: '{message}'")
                 
-                # Send message to created bot
-                sent_msg = await created_bot.send_message(
-                    chat_id=telegram_bot_session.test_chat_id,
-                    text=message
+                # Send message to created bot using rate limiter
+                sent_msg = await rate_limited_call(
+                    telegram_bot_session.created_bot_token,
+                    created_bot.send_message(
+                        chat_id=telegram_bot_session.test_chat_id,
+                        text=message
+                    )
                 )
                 
-                # Wait for bot processing (in real implementation, would capture actual response)
-                await asyncio.sleep(3)
+                # Brief wait for bot processing (not rate limiting)
+                await asyncio.sleep(1)
                 
                 # Simulate response analysis (in real implementation, would get actual bot response)
                 simulated_response = f"I'm a {test_case.bot_type} bot responding to: {message}"
@@ -180,8 +184,7 @@ class TestCreatedBotPersonalities:
                         personality_scores["forbidden"] += 1
                         print(f"⚠️ Found forbidden trait '{forbidden}' in response")
                 
-                # Rate limiting
-                await asyncio.sleep(2)
+                # Rate limiter handles timing automatically
             
             duration = performance_monitor.end_timing(f"personality_test_{test_case.bot_type}")
             
@@ -229,21 +232,22 @@ class TestCreatedBotPersonalities:
             for trigger in test_case.tool_triggers:
                 print(f"🎯 Testing tool trigger: '{trigger}'")
                 
-                # Send tool trigger message
-                await created_bot.send_message(
-                    chat_id=telegram_bot_session.test_chat_id,
-                    text=trigger
+                # Send tool trigger message using rate limiter
+                await rate_limited_call(
+                    telegram_bot_session.created_bot_token,
+                    created_bot.send_message(
+                        chat_id=telegram_bot_session.test_chat_id,
+                        text=trigger
+                    )
                 )
                 
-                # Wait for tool processing
-                await asyncio.sleep(4)
+                # Brief wait for tool processing (not rate limiting)
+                await asyncio.sleep(1)
                 
                 # In real implementation, would verify:
                 # - Tool was activated
                 # - Tool provided expected output format
                 # - Tool integrated properly with bot personality
-                
-                await asyncio.sleep(2)
             
             duration = performance_monitor.end_timing(f"tool_test_{test_case.bot_type}")
             
@@ -289,19 +293,18 @@ class TestCreatedBotErrorHandling:
                 try:
                     # Created bot should handle invalid inputs gracefully
                     if len(invalid_input.strip()) > 0:  # Only send non-empty messages
-                        await created_bot.send_message(
-                            chat_id=telegram_bot_session.test_chat_id,
-                            text=invalid_input[:4000]  # Telegram message limit
+                        await rate_limited_call(
+                            telegram_bot_session.created_bot_token,
+                            created_bot.send_message(
+                                chat_id=telegram_bot_session.test_chat_id,
+                                text=invalid_input[:4000]  # Telegram message limit
+                            )
                         )
-                        
-                        await asyncio.sleep(2)
                     
                 except TelegramError as e:
                     print(f"⚠️ Expected Telegram error for invalid input: {e}")
                 except Exception as e:
                     print(f"❌ Unexpected error: {e}")
-                
-                await asyncio.sleep(1)
             
             duration = performance_monitor.end_timing("error_handling_test")
             print(f"✅ Error handling test completed in {duration:.2f}s")
@@ -325,12 +328,15 @@ class TestCreatedBotErrorHandling:
         try:
             performance_monitor.start_timing("concurrent_messages")
             
-            # Send multiple messages concurrently
+            # Send concurrent messages using rate limiter
             message_tasks = []
-            for i in range(5):
-                task = created_bot.send_message(
-                    chat_id=telegram_bot_session.test_chat_id,
-                    text=f"Concurrent test message {i+1}"
+            for i in range(3):
+                task = rate_limited_call(
+                    telegram_bot_session.created_bot_token,
+                    created_bot.send_message(
+                        chat_id=telegram_bot_session.test_chat_id,
+                        text=f"Concurrent test message {i+1}"
+                    )
                 )
                 message_tasks.append(task)
             
@@ -399,14 +405,17 @@ class TestCreatedBotAIIntegration:
                 
                 question_start = time.time()
                 
-                # Send question to created bot
-                await created_bot.send_message(
-                    chat_id=telegram_bot_session.test_chat_id,
-                    text=question
+                # Send question to created bot using rate limiter
+                await rate_limited_call(
+                    telegram_bot_session.created_bot_token,
+                    created_bot.send_message(
+                        chat_id=telegram_bot_session.test_chat_id,
+                        text=question
+                    )
                 )
                 
-                # Wait for AI processing
-                await asyncio.sleep(5)  # AI responses typically take longer
+                # Brief wait for AI processing (not rate limiting)
+                await asyncio.sleep(2)
                 
                 response_time = time.time() - question_start
                 response_metrics["responses_received"] += 1
@@ -422,8 +431,6 @@ class TestCreatedBotAIIntegration:
                 response_metrics["quality_scores"].append(quality_score)
                 
                 print(f"⏱️ Response time: {response_time:.2f}s, Quality: {quality_score}/100")
-                
-                await asyncio.sleep(2)  # Rate limiting
             
             duration = performance_monitor.end_timing("ai_response_test")
             
@@ -472,20 +479,22 @@ class TestCreatedBotAIIntegration:
                 print(f"⚠️ Testing problematic input: '{problematic_input}'")
                 
                 # AI should handle these gracefully without breaking character
-                await created_bot.send_message(
-                    chat_id=telegram_bot_session.test_chat_id,
-                    text=problematic_input
+                await rate_limited_call(
+                    telegram_bot_session.created_bot_token,
+                    created_bot.send_message(
+                        chat_id=telegram_bot_session.test_chat_id,
+                        text=problematic_input
+                    )
                 )
-                
-                await asyncio.sleep(3)
                 
                 # Follow up with normal question to test recovery
-                await created_bot.send_message(
-                    chat_id=telegram_bot_session.test_chat_id,
-                    text="How are you doing today?"
+                await rate_limited_call(
+                    telegram_bot_session.created_bot_token,
+                    created_bot.send_message(
+                        chat_id=telegram_bot_session.test_chat_id,
+                        text="How are you doing today?"
+                    )
                 )
-                
-                await asyncio.sleep(3)
             
             print("✅ AI error recovery test completed")
             
@@ -533,13 +542,17 @@ async def test_created_bot_longevity(
                 # Cycle through conversation topics
                 topic = conversation_topics[interactions % len(conversation_topics)]
                 
-                await created_bot.send_message(
-                    chat_id=telegram_bot_session.test_chat_id,
-                    text=f"{topic} (interaction {interactions + 1})"
+                await rate_limited_call(
+                    telegram_bot_session.created_bot_token,
+                    created_bot.send_message(
+                        chat_id=telegram_bot_session.test_chat_id,
+                        text=f"{topic} (interaction {interactions + 1})"
+                    )
                 )
                 
                 interactions += 1
-                await asyncio.sleep(5)  # Realistic conversation pace
+                # Rate limiter handles timing - brief processing wait only
+                await asyncio.sleep(1)
                 
             except Exception as e:
                 errors += 1

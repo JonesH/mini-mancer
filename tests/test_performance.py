@@ -190,10 +190,9 @@ async def test_system_endurance_basic(
     
     while time.time() - start_time < test_duration:
         try:
-            # Simple operations
+            # Simple operations (rate limiter handles timing)
             await bot_interaction_helper.send_message_and_wait("Test message")
             operations += 1
-            await asyncio.sleep(3)
             
         except Exception as e:
             errors += 1

@@ -24,6 +24,7 @@ from telegram.error import TelegramError
 
 # Import your Mini-Mancer components
 from src.prototype_agent import PrototypeAgent
+from src.telegram_rate_limiter import rate_limited_call
 
 
 @dataclass
@@ -65,11 +66,16 @@ def bot_test_config():
     test_chat_id = int(os.getenv("TEST_CHAT_ID", "0"))
     test_user_id = int(os.getenv("TEST_USER_ID", "0"))
     
-    if not factory_token:
-        pytest.skip("BOT_TOKEN required for Telegram API testing")
+    # Add mock mode and message cleanup options
+    mock_mode = os.getenv("TEST_MOCK_MODE", "false").lower() == "true"
+    cleanup_messages = os.getenv("TEST_CLEANUP_MESSAGES", "true").lower() == "true"
+    message_delay = float(os.getenv("TEST_MESSAGE_DELAY", "1.0"))
     
-    if not test_chat_id or not test_user_id:
-        pytest.skip("TEST_CHAT_ID and TEST_USER_ID required for bot interaction testing")
+    if not factory_token and not mock_mode:
+        pytest.skip("BOT_TOKEN required for Telegram API testing (set TEST_MOCK_MODE=true for mock tests)")
+    
+    if (not test_chat_id or not test_user_id) and not mock_mode:
+        pytest.skip("TEST_CHAT_ID and TEST_USER_ID required for bot interaction testing (set TEST_MOCK_MODE=true for mock tests)")
     
     return {
         "factory_token": factory_token,
@@ -78,12 +84,42 @@ def bot_test_config():
         "test_user_id": test_user_id,
         "max_test_duration": 300,  # 5 minutes max per test
         "cleanup_delay": 2.0,  # Wait between cleanup operations
+        "mock_mode": mock_mode,
+        "cleanup_messages": cleanup_messages,
+        "message_delay": message_delay,
     }
 
 
 @pytest_asyncio.fixture(scope="function") 
 async def telegram_bot_session(bot_test_config) -> AsyncGenerator[BotTestSession, None]:
     """Create and manage a Telegram bot testing session"""
+    # Handle mock mode
+    if bot_test_config.get("mock_mode", False):
+        print("[MOCK] Creating mock bot session")
+        from unittest.mock import Mock
+        
+        # Create mock bot
+        mock_bot = Mock()
+        mock_bot.get_me = Mock(return_value=Mock(first_name="MockBot", username="mock_bot"))
+        mock_bot.send_message = Mock()
+        mock_bot.delete_message = Mock()
+        mock_bot.close = Mock()
+        
+        session = BotTestSession(
+            factory_bot=mock_bot,
+            factory_token="mock_token",
+            created_bot_token=bot_test_config.get("created_token", "mock_created_token"),
+            test_chat_id=bot_test_config.get("test_chat_id", 123456),
+            test_user_id=bot_test_config.get("test_user_id", 789012)
+        )
+        
+        try:
+            yield session
+        finally:
+            print("[MOCK] Mock session cleanup completed")
+        return
+    
+    # Real bot session
     factory_bot = Bot(token=bot_test_config["factory_token"])
     
     # Verify factory bot connectivity
@@ -136,23 +172,41 @@ async def bot_interaction_helper(telegram_bot_session):
     """Helper for common bot interaction patterns"""
     
     class BotInteractionHelper:
-        def __init__(self, session: BotTestSession):
+        def __init__(self, session: BotTestSession, config: dict):
             self.session = session
+            self.config = config
             self.sent_messages = []
+            self.message_count = 0
         
         async def send_message_and_wait(self, text: str, timeout: int = 10) -> Message:
-            """Send a message to the factory bot and return the response"""
+            """Send a message to the factory bot using adaptive rate limiter"""
+            # Mock mode - don't send real messages
+            if self.config.get("mock_mode", False):
+                print(f"[MOCK] Would send message: '{text[:50]}...'")
+                # Create mock message object
+                from telegram import Message as TelegramMessage
+                from unittest.mock import Mock
+                mock_msg = Mock(spec=TelegramMessage)
+                mock_msg.message_id = 999999 + self.message_count
+                self.message_count += 1
+                await asyncio.sleep(0.1)  # Brief delay for realism
+                return mock_msg
+            
             try:
-                # Send message to factory bot
-                sent_msg = await self.session.factory_bot.send_message(
-                    chat_id=self.session.test_chat_id,
-                    text=text
+                # Send message using adaptive rate limiter
+                print(f"[TEST] Sending: '{text[:50]}...'")  # Log what we're sending
+                
+                # Use rate_limited_call with factory bot token
+                sent_msg = await rate_limited_call(
+                    self.session.factory_token,
+                    self.session.factory_bot.send_message(
+                        chat_id=self.session.test_chat_id,
+                        text=text
+                    )
                 )
                 self.sent_messages.append(sent_msg.message_id)
                 
-                # Wait for response (in real testing, you'd listen for updates)
-                await asyncio.sleep(2)  # Simple delay - could be improved with webhook listening
-                
+                # No manual delay needed - rate limiter handles timing
                 return sent_msg
                 
             except TelegramError as e:
@@ -162,11 +216,14 @@ async def bot_interaction_helper(telegram_bot_session):
             """Test complete bot creation flow"""
             print(f"🔧 Testing bot creation: '{bot_request}'")
             
-            # Send bot creation request
+            # Send bot creation request (rate limiter handles timing)
             creation_msg = await self.send_message_and_wait(bot_request)
             
-            # Wait for bot creation and startup
-            await asyncio.sleep(5)
+            # Brief wait for processing logic (not rate limiting)
+            if self.config.get("mock_mode", False):
+                await asyncio.sleep(0.1)
+            else:
+                await asyncio.sleep(1)  # Just for processing, not rate limiting
             
             # Verify bot was created (would need to check actual response in real implementation)
             return {
@@ -179,11 +236,14 @@ async def bot_interaction_helper(telegram_bot_session):
             """Test bot creation via inline keyboard buttons"""
             print(f"🎮 Testing inline keyboard creation: {callback_data}")
             
-            # First send /start to get keyboard
+            # First send /start to get keyboard (rate limiter handles timing)
             start_msg = await self.send_message_and_wait("/start")
             
-            # Simulate button press (in real implementation, would use callback query)
-            await asyncio.sleep(3)
+            # Brief simulation delay (not for rate limiting)
+            if self.config.get("mock_mode", False):
+                await asyncio.sleep(0.1)
+            else:
+                await asyncio.sleep(0.5)  # Just for UI simulation
             
             return {
                 "start_message_id": start_msg.message_id,
@@ -192,20 +252,53 @@ async def bot_interaction_helper(telegram_bot_session):
             }
         
         async def cleanup_messages(self):
-            """Clean up test messages"""
+            """Clean up test messages with improved error handling"""
+            if not self.config.get("cleanup_messages", True):
+                print(f"[TEST] Skipping cleanup of {len(self.sent_messages)} messages (cleanup disabled)")
+                return
+            
+            if self.config.get("mock_mode", False):
+                print(f"[MOCK] Would cleanup {len(self.sent_messages)} messages")
+                return
+            
+            if not self.sent_messages:
+                return
+                
+            print(f"[CLEANUP] Attempting to delete {len(self.sent_messages)} test messages...")
+            successful_deletions = 0
+            failed_deletions = 0
+            
             for msg_id in self.sent_messages:
                 try:
+                    # Add small delay before each deletion attempt
+                    await asyncio.sleep(0.2)
+                    
                     await self.session.factory_bot.delete_message(
                         chat_id=self.session.test_chat_id,
                         message_id=msg_id
                     )
-                except TelegramError:
-                    pass  # Message might already be deleted
+                    successful_deletions += 1
+                    
+                except TelegramError as e:
+                    failed_deletions += 1
+                    # Only log specific errors that aren't expected
+                    error_msg = str(e).lower()
+                    if "message to delete not found" not in error_msg and "message can't be deleted" not in error_msg:
+                        print(f"[CLEANUP] Unexpected error deleting message {msg_id}: {e}")
+                except Exception as e:
+                    failed_deletions += 1
+                    print(f"[CLEANUP] Unexpected error deleting message {msg_id}: {e}")
+            
+            print(f"[CLEANUP] Deleted {successful_deletions}/{len(self.sent_messages)} messages ({failed_deletions} failed)")
+            
+            # Clear the list after cleanup attempt
+            self.sent_messages.clear()
     
-    helper = BotInteractionHelper(telegram_bot_session)
+    helper = BotInteractionHelper(telegram_bot_session, bot_test_config)
     try:
         yield helper
     finally:
+        # Rate limiter handles timing, just cleanup messages
         await helper.cleanup_messages()
 
 

@@ -248,6 +248,11 @@ BOT_TOKEN_1=your_created_bot_token
 TEST_CHAT_ID=your_test_chat_id
 TEST_USER_ID=your_test_user_id
 
+# NEW: Test behavior configuration
+TEST_MOCK_MODE=false          # Set to true for mock tests (no real API calls)
+TEST_CLEANUP_MESSAGES=true    # Set to false to keep test messages for debugging
+TEST_MESSAGE_DELAY=1.0        # Deprecated - rate limiter handles timing automatically
+
 # Test markers for selective testing
 pytest -m "slow"           # Long-running tests
 pytest -m "mock"           # Mock tests (no API calls)
@@ -258,6 +263,7 @@ pytest -m "unit"           # Unit tests only
 ### Framework Features
 - **Real Telegram API Testing** - Validates actual bot interactions and message flows
 - **Mock Testing Support** - CI/CD friendly testing without external dependencies
+- **Adaptive Rate Limiting** - Integrates existing rate limiter with 429 error handling and exponential backoff
 - **Performance Monitoring** - Memory usage, response times, and concurrency metrics
 - **Automated Cleanup** - Resource management and test isolation
 - **49+ Test Cases** - Comprehensive validation of all system components
@@ -308,9 +314,10 @@ uv run python main.py
 
 ### Rate Limiting
 All Telegram API calls are automatically rate-limited to prevent hitting API limits:
-- **20 requests/second** per bot (configurable via `TELEGRAM_RATE_LIMIT`)
-- **Token bucket algorithm** with automatic backoff
-- **Per-bot tracking** to handle multiple simultaneous bots
+- **Adaptive Rate Limiting** with 429 error detection and exponential backoff
+- **20 requests/second** base rate per bot (automatically adjusts)
+- **Token bucket algorithm** with per-bot isolation
+- **Test Framework Integration** - Tests use rate limiter automatically
 - **Monitoring integration** to log all rate-limited calls
 
 ## ⚙️ Configuration

@@ -19,6 +19,7 @@ from telegram.error import TelegramError
 from telegram.ext import Application
 
 from conftest import BotTestSession, TelegramTestError
+from src.telegram_rate_limiter import rate_limited_call
 
 
 @pytest.mark.integration
@@ -69,9 +70,12 @@ class TestEndToEndBotWorkflows:
                 created_bot = Bot(token=telegram_bot_session.created_bot_token)
                 
                 try:
-                    await created_bot.send_message(
-                        chat_id=telegram_bot_session.test_chat_id,
-                        text="Hello from LifecycleBot!"
+                    await rate_limited_call(
+                        telegram_bot_session.created_bot_token,
+                        created_bot.send_message(
+                            chat_id=telegram_bot_session.test_chat_id,
+                            text="Hello from LifecycleBot!"
+                        )
                     )
                     print("✅ Bot interaction successful")
                 finally:
@@ -262,10 +266,9 @@ async def test_system_resilience_and_recovery(
         
         try:
             if scenario_name == "rapid_requests":
-                # Test rapid request handling
+                # Test rapid request handling (rate limiter handles timing)
                 for _ in range(5):
                     await bot_interaction_helper.send_message_and_wait("Quick test")
-                    await asyncio.sleep(0.1)
             else:
                 # Send problematic input
                 await bot_interaction_helper.send_message_and_wait(test_input)
@@ -289,8 +292,7 @@ async def test_system_resilience_and_recovery(
             recovery_results.append((scenario_name, recovery_time, False))
             print(f"❌ Failed to recover from {scenario_name}: {e}")
         
-        # Wait between scenarios
-        await asyncio.sleep(2)
+        # Rate limiter handles timing between scenarios
     
     # Analyze recovery results
     successful_recoveries = sum(1 for _, _, success in recovery_results if success)

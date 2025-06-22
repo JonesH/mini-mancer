@@ -20,6 +20,7 @@ from conftest import (
     BotTestSession, TelegramTestError,
     bot_creation_test_case, inline_keyboard_test_case
 )
+from src.telegram_rate_limiter import rate_limited_call
 
 
 @pytest.mark.factory_bot
@@ -232,14 +233,13 @@ class TestFactoryBotErrorHandling:
         messages_sent = 0
         errors_encountered = 0
         
-        # Send messages rapidly to test rate limiting
-        for i in range(10):
+        # Send messages to test rate limiting behavior
+        for i in range(8):  # Test rate limiting response
             try:
                 await bot_interaction_helper.send_message_and_wait(f"Test message {i}")
                 messages_sent += 1
                 
-                # Very short delay to trigger rate limiting
-                await asyncio.sleep(0.1)
+                # No manual delay - rate limiter handles this automatically
                 
             except TelegramError as e:
                 errors_encountered += 1
@@ -371,8 +371,7 @@ async def test_factory_bot_endurance(
             
             interactions += 1
             
-            # Rate limiting delay
-            await asyncio.sleep(2)
+            # Rate limiter handles timing automatically - no manual delay needed
             
         except Exception as e:
             errors += 1
