@@ -5,6 +5,7 @@ Handles Telegram bot creation, management, and lifecycle operations.
 Extracted from prototype_agent.py for better separation of concerns.
 """
 
+import asyncio
 import logging
 
 from .agents import TelegramBotTemplate
@@ -32,6 +33,9 @@ class TelegramBotManager:
 
         if not self.created_bot_token:
             logger.warning("⚠️  BOT_TOKEN_1 not configured - created bots will be disabled")
+        elif not self.is_valid_bot_token(self.created_bot_token):
+            logger.error("❌ BOT_TOKEN_1 has invalid format - created bots will be disabled")
+            self.created_bot_token = None
 
     def is_bot_creation_available(self) -> bool:
         """Check if bot creation is available"""
@@ -225,10 +229,94 @@ class TelegramBotManager:
 
         try:
             self.created_bot_state = "starting"
-            # Implementation would go here for starting the bot
-            # This is a placeholder for the actual bot starting logic
+
+            # Get the bot token from the template
+            if not bot_template.bot_token:
+                self.created_bot_state = "error"
+                return "❌ No bot token available for deployment"
+
+            # Import required Telegram components
+            from telegram import Bot
+            from telegram.ext import Application, MessageHandler, filters
+
+            # Create Telegram application for the new bot
+            bot_application = Application.builder().token(bot_template.bot_token).build()
+
+            # Add message handler for the bot
+            async def handle_bot_message(update, context):
+                """Handle messages sent to the created bot"""
+                try:
+                    if not update.message or not update.message.text:
+                        return
+
+                    # Prepare message data for the bot template (matching expected format)
+                    message_data = {
+                        "text": update.message.text,
+                        "message_id": update.message.message_id,
+                        "from": {
+                            "id": update.effective_user.id,
+                            "username": update.effective_user.username,
+                        },
+                        "chat": {
+                            "id": update.effective_chat.id,
+                        },
+                    }
+
+                    # Get response from the bot template's AI agent
+                    response = await bot_template.handle_message(message_data)
+
+                    # Send response back to user
+                    await update.message.reply_text(response)
+
+                    logger.info(f"🤖 [CREATED BOT] Processed message: {update.message.text[:50]}...")
+
+                except Exception as e:
+                    logger.error(f"❌ [CREATED BOT] Error handling message: {e}")
+                    await update.message.reply_text("Sorry, I had trouble processing your message. Please try again.")
+
+            # Register the message handler
+            bot_application.add_handler(
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_bot_message)
+            )
+
+            # Get bot information
+            bot = Bot(bot_template.bot_token)
+            bot_info = await bot.get_me()
+            bot_username = bot_info.username
+
+            logger.info(f"🚀 [CREATED BOT] Starting bot: @{bot_username}")
+
+            # Start the bot application in the background
+            async def run_bot():
+                """Run the created bot"""
+                try:
+                    async with bot_application:
+                        await bot_application.start()
+                        await bot_application.updater.start_polling()
+                        logger.info(f"✅ [CREATED BOT] @{bot_username} is now live and responding to messages!")
+
+                        # Keep running until cancelled
+                        while self.created_bot_state == "running":
+                            await asyncio.sleep(1)
+
+                except Exception as e:
+                    logger.error(f"❌ [CREATED BOT] Runtime error: {e}")
+                    self.created_bot_state = "error"
+                finally:
+                    if bot_application.updater:
+                        await bot_application.updater.stop()
+                    await bot_application.stop()
+                    logger.info(f"🛑 [CREATED BOT] @{bot_username} stopped")
+
+            # Start the bot in a background task
+            import asyncio
+            self.created_bot_start_task = asyncio.create_task(run_bot())
+
+            # Set state to running
             self.created_bot_state = "running"
-            return "✅ Bot started successfully!"
+
+            return bot_username
+
         except Exception as e:
             self.created_bot_state = "error"
             logger.error(f"❌ Failed to start created bot: {e}")
@@ -241,10 +329,23 @@ class TelegramBotManager:
 
         try:
             self.created_bot_state = "stopping"
-            # Implementation would go here for stopping the bot
+
+            # Cancel the bot's background task if it exists
+            if self.created_bot_start_task:
+                self.created_bot_start_task.cancel()
+                try:
+                    await self.created_bot_start_task
+                except asyncio.CancelledError:
+                    pass  # Expected when cancelling task
+                self.created_bot_start_task = None
+
+            # Clean up state
             self.created_bot_state = "none"
             self.active_created_bot = None
+
+            logger.info("🛑 [CREATED BOT] Successfully stopped created bot")
             return "✅ Bot stopped successfully"
+
         except Exception as e:
             self.created_bot_state = "error"
             logger.error(f"❌ Failed to stop created bot: {e}")
