@@ -200,3 +200,4 @@ aider.conf.yml
 node_modules/
 package-lock.json
 package.json
+*.session
