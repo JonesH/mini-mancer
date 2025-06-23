@@ -45,7 +45,7 @@ class TelegramBotManager:
         """Check if a bot is currently active"""
         return self.created_bot_state in ["creating", "starting", "running"]
 
-    def create_bot_instant(
+    async def create_bot_instant(
         self, bot_name: str, bot_purpose: str, personality: str = "helpful"
     ) -> str:
         """
@@ -64,9 +64,13 @@ class TelegramBotManager:
             if not self.created_bot_token:
                 return ERROR_MESSAGES["bot_creation_disabled"]
 
-            # Check if another bot is already active
+            # If another bot is already active, stop it first to allow new bot creation
             if self.is_bot_active():
-                return ERROR_MESSAGES["bot_already_exists"]
+                logger.info("🔄 [BOT MANAGER] Stopping existing bot to create new one...")
+                stop_result = await self.stop_created_bot()
+                logger.info(f"✅ [BOT MANAGER] Previous bot stopped: {stop_result}")
+                # Small delay to ensure cleanup is complete
+                await asyncio.sleep(0.5)
 
             # Validate inputs
             if not bot_name or len(bot_name.strip()) < 2:

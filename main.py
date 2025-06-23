@@ -116,7 +116,7 @@ async def handle_bot_creation_request(update: Update, message_text: str, user_id
         logger.error("❌ Factory bot creation failed - prototype not available")
         return
 
-    bot_result = prototype.create_new_bot_instant(bot_name, "General assistance", "helpful")
+    bot_result = await prototype.create_new_bot_instant(bot_name, "General assistance", "helpful")
     if FACTORY_BOT_TOKEN and update.message:
         await rate_limited_call(
             FACTORY_BOT_TOKEN, update.message.reply_text(bot_result, parse_mode="Markdown")
@@ -437,7 +437,7 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
                 )
             return
 
-        bot_result = prototype.create_new_bot_instant(
+        bot_result = await prototype.create_new_bot_instant(
             template["name"],
             f"{template['purpose']} with {template['tool']} tool",
             template["personality"],

@@ -204,11 +204,11 @@ class AgentController:
         logger.info("🛣️ API routes configured successfully")
 
     # Delegation methods for bot operations
-    def create_new_bot_instant(
+    async def create_new_bot_instant(
         self, bot_name: str, bot_purpose: str, personality: str = "helpful"
     ) -> str:
         """Create a new bot using instant mode"""
-        return self.telegram_manager.create_bot_instant(bot_name, bot_purpose, personality)
+        return await self.telegram_manager.create_bot_instant(bot_name, bot_purpose, personality)
 
     def create_new_bot_advanced(self, requirements: BotRequirements) -> str:
         """Create a new bot using advanced mode"""
