@@ -19,6 +19,7 @@ from telegram.ext import (
 )
 
 from src.botmother_system_prompt import BOTMOTHER_SYSTEM_PROMPT
+from src.constants.user_messages import WELCOME_MESSAGES
 from src.prototype_agent import app, prototype
 from src.telegram_rate_limiter import rate_limited_call
 from src.test_monitor import log_ai_response, log_bot_message
@@ -205,20 +206,20 @@ async def create_quick_command(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = str(update.effective_user.id)
     logger.info(f"📱 [FACTORY BOT] /create_quick from user {user_id}")
 
-    quick_guide = """🚀 **Quick Bot Creation Guide**
+    quick_guide = """🚀 Quick Bot Creation Guide
 
-**Simple Format:**
-`create [type] bot named [name]`
+Simple Format:
+create [type] bot named [name]
 
-**Examples:**
-• `create helpful bot named Assistant`
-• `create professional bot named Support`
-• `create gaming bot named GamerBuddy`
+Examples:
+• create helpful bot named Assistant
+• create professional bot named Support
+• create gaming bot named GamerBuddy
 
-**Available Types:**
+Available Types:
 🤝 helpful, 💼 professional, 😎 casual, 🎉 enthusiastic, 😄 witty, 🧘 calm
 
-**Advanced:**
+Advanced:
 Use /create_bot for detailed configuration
 
 Try it now! 👇"""
@@ -226,7 +227,25 @@ Try it now! 👇"""
     if FACTORY_BOT_TOKEN:
         await rate_limited_call(
             FACTORY_BOT_TOKEN,
-            update.message.reply_text(quick_guide, parse_mode="Markdown")
+            update.message.reply_text(quick_guide)
+        )
+
+
+@safe_telegram_operation(
+    "examples_command", "Sorry, I couldn't process your /examples command. Please try again."
+)
+async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /examples command"""
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    logger.info(f"📱 [FACTORY BOT] /examples from user {user_id}")
+
+    if FACTORY_BOT_TOKEN:
+        await rate_limited_call(
+            FACTORY_BOT_TOKEN,
+            update.message.reply_text(WELCOME_MESSAGES["examples"], parse_mode="HTML")
         )
 
 
@@ -240,8 +259,6 @@ async def list_personalities_command(update: Update, context: ContextTypes.DEFAU
 
     user_id = str(update.effective_user.id)
     logger.info(f"📱 [FACTORY BOT] /list_personalities from user {user_id}")
-
-    from src.constants.user_messages import WELCOME_MESSAGES
 
     if FACTORY_BOT_TOKEN:
         await rate_limited_call(
@@ -303,6 +320,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 **Available Commands:**
 • `/start` - Show main menu with quick creation buttons
 • `/create_quick` - Quick bot creation guide
+• `/examples` - See bot creation examples
 • `/list_personalities` - See all available bot personalities
 • `/create_bot` - Advanced bot creation with parameters
 • `/help` - Show this help message
@@ -490,6 +508,7 @@ async def start_telegram_bot(bot_token: str) -> None:
     application = Application.builder().token(bot_token).build()
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("create_quick", create_quick_command))
+    application.add_handler(CommandHandler("examples", examples_command))
     application.add_handler(CommandHandler("list_personalities", list_personalities_command))
     application.add_handler(CommandHandler("create_bot", create_bot_command))
     application.add_handler(CommandHandler("help", help_command))

@@ -27,8 +27,11 @@ source .venv/bin/activate
 
 ### Running the Application
 ```bash
-# Run the main application
+# Run the main application locally
 uv run python main.py
+
+# Run with Docker (recommended for development)
+docker compose up mini-mancer -d --force-recreate --build
 ```
 
 ### Code Quality & Testing
@@ -177,6 +180,8 @@ uv run pytest tests/                     # Run test suite
  • **ALWAYS** add files explicitly by name: `git add specific_file.py`
  • **ALWAYS** check `git status` and `git diff --staged` before committing
  • **NEVER** commit without reviewing exactly what is being staged
+ • **NEVER** put credentials, API keys, tokens, or secrets directly in code
+ • **ALWAYS** use environment variables or secure credential management for sensitive data
 
 ### Commit Message Rules:
  • **NEVER** add "Co-Authored-By: Claude" or any AI attribution to commit messages
@@ -219,3 +224,42 @@ uv run mypy src/ main.py         # Type checking
 - Ruff violations should be minimal (< 10 cosmetic issues)
 - No F-series errors (undefined names, imports, etc.)
 - Modern Python 3.11+ type annotations required
+
+## Telegram Bot Testing Protocol
+
+### MANDATORY TELEGRAM BOT TESTING:
+
+**CRITICAL RULE:** Never claim a Telegram bot command is "fixed" or "working" without actual functional testing via Telegram API.
+
+**Testing Protocol:**
+1. **PRIMARY TEST METHOD:** Use actual Telegram API calls to test bot commands
+2. **Verification Required:** Confirm bot responds as expected to user interactions  
+3. **Error Validation:** Verify no crashes, malfunction, or error messages to users
+4. **Success Criteria:** User receives intended response content and formatting
+
+**Testing Tools:**
+- Use curl commands with bot token to send messages
+- Test via actual Telegram client interaction
+- Verify response content matches expectations
+- Check logs only as secondary validation
+
+**What "Working" Means:**
+- ✅ User sends command and gets expected response
+- ✅ No error messages delivered to user
+- ✅ Formatting displays correctly in Telegram
+- ❌ NOT "code compiles without syntax errors"
+- ❌ NOT "container starts successfully"
+- ❌ NOT "no immediate crashes in logs"
+
+**Example Testing Commands:**
+```bash
+# Test /start command
+curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+  -H "Content-Type: application/json" \
+  -d '{"chat_id": "${TEST_USER_ID}", "text": "/start"}'
+
+# Test /create_quick command  
+curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+  -H "Content-Type: application/json" \
+  -d '{"chat_id": "${TEST_USER_ID}", "text": "/create_quick"}'
+```
