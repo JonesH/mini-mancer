@@ -7,11 +7,16 @@ This provides the AI capabilities that will power both BotMother and child bots.
 
 import logging
 import os
+from functools import partial
+from itertools import chain
+from operator import attrgetter, methodcaller
 from typing import Any
 
 from agno.agent import Agent
 from agno.memory.v2 import Memory
+from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.models.openai import OpenAIChat
+from agno.storage.postgres import PostgresStorage
 from dotenv import load_dotenv
 
 from .constants import DEFAULT_AI_INSTRUCTIONS, SPECIALIZED_AGENT_INSTRUCTIONS_TEMPLATE
@@ -34,17 +39,38 @@ class AgnoIntelligenceCore:
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY must be set in .env for Agno")
 
-    def initialize_agent(self, instructions: str = None) -> Agent:
-        """Initialize Agno agent with Memory.v2."""
+    def initialize_agent(self, instructions: str = None, tools: list = None) -> Agent:
+        """Initialize Agno agent with PostgreSQL Memory.v2 and Storage."""
         if self.agent:
             return self.agent
 
         default_instructions = DEFAULT_AI_INSTRUCTIONS
+        
+        # Use PostgreSQL for all persistence (Agno default config)
+        db_url = os.getenv("DATABASE_URL", "postgresql+psycopg://ai:ai@localhost:5532/ai")
+        
+        # Memory for user memories and conversations
+        memory = Memory(
+            db=PostgresMemoryDb(
+                table_name=f"{self.agent_name}_memories", 
+                db_url=db_url
+            )
+        )
+        
+        # Storage for session history
+        storage = PostgresStorage(
+            table_name=f"{self.agent_name}_sessions",
+            db_url=db_url
+        )
 
         self.agent = Agent(
             model=OpenAIChat(id="gpt-4o"),
-            memory=Memory(),  # Memory.v2 for conversation history
+            memory=memory,
+            storage=storage,
             instructions=instructions or default_instructions,
+            tools=tools or [],
+            enable_user_memories=True,
+            enable_session_summaries=True,
             add_history_to_messages=True,
             num_history_runs=3
         )
@@ -78,11 +104,14 @@ class AgnoIntelligenceCore:
             session_id=session_id
         )
 
-        # Extract content from RunResponse object
-        if hasattr(response, 'content'):
-            content = response.content
-        else:
-            content = str(response)
+        # ULTRA-PYTHONIC: Pure functional with operator.attrgetter + itertools
+        get_content = attrgetter('content')
+        to_str = methodcaller('__str__')
+        
+        content = ''.join(
+            to_str(get_content(item)) if hasattr(item, 'content') else str(item)
+            for item in chain([response] if isinstance(response, str) or not hasattr(response, '__iter__') else response)
+        )
 
         logger.debug(f"Agno processed message: {message[:50]}... → {content[:50]}...")
         return content

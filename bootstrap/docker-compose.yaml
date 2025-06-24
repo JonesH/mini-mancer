@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: agnohq/pgvector:16
+    container_name: bootstrap-postgres
+    environment:
+      - POSTGRES_DB=ai
+      - POSTGRES_USER=ai
+      - POSTGRES_PASSWORD=ai
+    ports:
+      - "5532:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bootstrap-mvp:
+    build: .
+    container_name: bootstrap-mvp
+    environment:
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - BOT_MOTHER_TOKEN=${BOT_MOTHER_TOKEN}
+      - AGNO_API_KEY=${AGNO_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BOT_TOKEN_1=${BOT_TOKEN_1}
+      - OPENSERV_API_KEY=${OPENSERV_API_KEY}
+      - OPENSERV_SECRET_KEY=${OPENSERV_SECRET_KEY}
+      - TEST_CHAT_ID=${TEST_CHAT_ID}
+      - TEST_USER_ID=${TEST_USER_ID}
+      - DEBUG=${DEBUG:-false}
+      - DATABASE_URL=postgresql+psycopg://ai:ai@postgres:5432/ai
+    ports:
+      - "14159:14159"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
