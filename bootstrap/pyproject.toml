@@ -1,7 +1,25 @@
 [project]
 name = "bootstrap"
 version = "0.1.0"
-description = "Add your description here"
+description = "Bootstrap MVP for Mini-Mancer with Telethon testing and Agno intelligence"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    # Core Intelligence
+    "agno>=0.5.50",              # AI framework with Memory.v2
+    
+    # Telegram Integration
+    "telethon>=1.40.0",          # User client for testing
+    "python-telegram-bot>=22.1", # Bot framework
+    
+    # OpenServ Integration  
+    "openserv-sdk>=0.1.0",       # Official OpenServ Python SDK
+    
+    # HTTP & Networking
+    "httpx>=0.28.1",             # Modern async HTTP client
+    "certifi>=2023.0.0",         # SSL certificates
+    
+    # Utilities
+    "python-dotenv>=1.1.0",      # Environment variables
+    "pydantic>=2.11.7",          # Data validation
+]
