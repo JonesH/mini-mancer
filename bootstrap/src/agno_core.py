@@ -20,6 +20,7 @@ from agno.storage.postgres import PostgresStorage
 from dotenv import load_dotenv
 
 from .constants import DEFAULT_AI_INSTRUCTIONS, SPECIALIZED_AGENT_INSTRUCTIONS_TEMPLATE
+from .event_loop_monitor import track_database_call
 
 
 load_dotenv()

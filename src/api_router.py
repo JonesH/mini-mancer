@@ -20,6 +20,7 @@ from .api_models import (
     TestMonitorEvent,
     TestMonitorStats,
 )
+from .event_loop_monitor import get_health_report
 from .models.bot_requirements import AVAILABLE_TOOLS, ToolCategory
 from .test_monitor import get_dashboard_html, monitor
 
@@ -146,20 +147,68 @@ class APIRouter:
         }
 
     async def health_check(self) -> dict[str, Any]:
-        """Health check endpoint for OpenServ to verify Mini-Mancer"""
+        """Enhanced health check with comprehensive event loop monitoring"""
         bot_status = "enabled" if self.telegram_manager.is_bot_creation_available() else "disabled"
+        
+        # Get comprehensive health report from event loop monitor
+        health_report = get_health_report()
+        
+        # Analyze health status
+        overall_status = "healthy"
+        issues = []
+        
+        # Check event loop health
+        for loop_id, loop_health in health_report.get("event_loops", {}).items():
+            if loop_health.get("is_blocked", False):
+                overall_status = "degraded"
+                issues.append(f"Event loop {loop_id} is blocked")
+            
+            if loop_health.get("failed_tasks", 0) > 5:
+                overall_status = "degraded"
+                issues.append(f"Event loop {loop_id} has {loop_health['failed_tasks']} failed tasks")
+        
+        # Check Agno performance
+        agno_metrics = health_report.get("agno_metrics", {})
+        if agno_metrics.get("blocking_calls", 0) > 0:
+            overall_status = "degraded"
+            issues.append(f"Detected {agno_metrics['blocking_calls']} blocking Agno calls")
+        
+        if agno_metrics.get("failed_calls", 0) > 0:
+            overall_status = "degraded"
+            issues.append(f"Agno has {agno_metrics['failed_calls']} failed calls")
+        
+        # Check system resources
+        system_info = health_report.get("system", {})
+        memory_mb = system_info.get("memory_mb", 0)
+        if memory_mb > 1000:  # Over 1GB
+            overall_status = "degraded"
+            issues.append(f"High memory usage: {memory_mb:.1f}MB")
 
         return {
-            "status": "healthy",
+            "status": overall_status,
             "service": "mini-mancer",
             "version": "1.0.0",
             "timestamp": datetime.now().isoformat(),
             "components": {
                 "fastapi": "operational",
                 "telegram": "operational",
-                "agno_agi": "operational",
+                "agno_agi": "operational" if agno_metrics.get("failed_calls", 0) == 0 else "degraded",
                 "bot_creation": bot_status,
+                "event_loops": "healthy" if not any(loop.get("is_blocked") for loop in health_report.get("event_loops", {}).values()) else "blocked",
             },
+            "monitoring": {
+                "event_loops_count": len(health_report.get("event_loops", {})),
+                "total_tasks": sum(loop.get("total_tasks", 0) for loop in health_report.get("event_loops", {}).values()),
+                "pending_tasks": sum(loop.get("pending_tasks", 0) for loop in health_report.get("event_loops", {}).values()),
+                "failed_tasks": sum(loop.get("failed_tasks", 0) for loop in health_report.get("event_loops", {}).values()),
+                "agno_total_calls": agno_metrics.get("total_calls", 0),
+                "agno_avg_duration": agno_metrics.get("avg_duration", 0),
+                "agno_blocking_calls": agno_metrics.get("blocking_calls", 0),
+                "memory_mb": memory_mb,
+                "cpu_percent": system_info.get("cpu_percent", 0),
+            },
+            "issues": issues,
+            "detailed_health": health_report,
         }
 
     async def openserv_ping(self, request: Request) -> dict[str, Any]:

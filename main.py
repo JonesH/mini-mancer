@@ -20,6 +20,7 @@ from telegram.ext import (
 
 from src.botmother_system_prompt import BOTMOTHER_SYSTEM_PROMPT
 from src.constants.user_messages import WELCOME_MESSAGES
+from src.event_loop_monitor import start_monitoring, get_health_report, track_agno_call
 from src.prototype_agent import app, prototype
 from src.telegram_rate_limiter import rate_limited_call
 from src.test_monitor import log_ai_response, log_bot_message
@@ -128,31 +129,46 @@ async def handle_bot_creation_request(update: Update, message_text: str, user_id
 
 
 async def start_created_bot_if_ready(update: Update, user_id: str) -> None:
-    """Start created bot if it's ready"""
-    if prototype.active_created_bot and prototype.created_bot_state == "created":
-        logger.info("🚀 [FACTORY BOT] Starting created bot with real Telegram connection...")
-        username = await prototype.start_created_bot(prototype.active_created_bot)
-        if username and prototype.created_bot_state == "running":
-            real_link_msg = f"🎉 **Bot is now live!**\n\nReal link: https://t.me/{username}"
-            if FACTORY_BOT_TOKEN and update.message:
-                await rate_limited_call(
-                    FACTORY_BOT_TOKEN,
-                    update.message.reply_text(real_link_msg, parse_mode="Markdown"),
-                )
-            logger.info(f"✅ [FACTORY BOT] Created bot now live at @{username}")
-        else:
-            error_msg = f"❌ **Bot creation failed**\n\nStatus: {prototype.created_bot_state}\nPlease try again."
-            if FACTORY_BOT_TOKEN and update.message:
-                await rate_limited_call(
-                    FACTORY_BOT_TOKEN, update.message.reply_text(error_msg, parse_mode="Markdown")
-                )
-            logger.error(
-                f"❌ [FACTORY BOT] Failed to start created bot, state: {prototype.created_bot_state}"
+    """Start the most recently created bot from token pool"""
+    # Get the most recently created bot from token pool
+    active_bots = prototype.telegram_manager.token_pool.get_active_bots()
+    
+    if not active_bots:
+        logger.error("❌ [FACTORY BOT] No bots in token pool to start")
+        return
+    
+    # Get the most recently created bot (last in the list)
+    latest_bot = active_bots[-1]
+    
+    if latest_bot.status != "created":
+        logger.error(f"❌ [FACTORY BOT] Latest bot is in wrong state: {latest_bot.status}")
+        return
+    
+    logger.info(f"🚀 [FACTORY BOT] Starting created bot '{latest_bot.name}' with real Telegram connection...")
+    
+    # Start the bot using the new token pool system
+    result = await prototype.telegram_manager.start_bot_by_token(latest_bot.token)
+    
+    if "🚀" in result and "started successfully" in result:
+        # Extract username from the result message 
+        import re
+        username_match = re.search(r'@(\w+)', result)
+        username = username_match.group(1) if username_match else latest_bot.username
+        
+        real_link_msg = f"🎉 **Bot is now live!**\n\nReal link: https://t.me/{username}"
+        if FACTORY_BOT_TOKEN and update.message:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(real_link_msg, parse_mode="Markdown"),
             )
-    elif prototype.active_created_bot:
-        logger.error(f"❌ [FACTORY BOT] Created bot in wrong state: {prototype.created_bot_state}")
+        logger.info(f"✅ [FACTORY BOT] Created bot '{latest_bot.name}' now live at @{username}")
     else:
-        logger.error("❌ [FACTORY BOT] No active created bot to start")
+        error_msg = f"❌ **Bot creation failed**\n\nError: {result}\nPlease try again."
+        if FACTORY_BOT_TOKEN and update.message:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN, update.message.reply_text(error_msg, parse_mode="Markdown")
+            )
+        logger.error(f"❌ [FACTORY BOT] Failed to start created bot '{latest_bot.name}': {result}")
 
 
 async def handle_regular_conversation(
@@ -180,7 +196,13 @@ async def handle_regular_conversation(
     Respond as BotMother with enthusiasm and creativity. If they're asking about bot creation,
     guide them or suggest using the quick creation buttons they can access with /start.
     """
-    response = prototype.agno_agent.run(prompt)
+    
+    # CRITICAL: Monitor this synchronous call for event loop blocking
+    @track_agno_call
+    def make_agno_call():
+        return prototype.agno_agent.run(prompt)
+    
+    response = make_agno_call()
 
     # Log AI interaction for monitoring
     try:
@@ -317,12 +339,24 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     help_text = """🏭 **Mini-Mancer Factory Bot Help**
 
-**Available Commands:**
+**Bot Creation Commands:**
 • `/start` - Show main menu with quick creation buttons
 • `/create_quick` - Quick bot creation guide
 • `/examples` - See bot creation examples
 • `/list_personalities` - See all available bot personalities
 • `/create_bot` - Advanced bot creation with parameters
+
+**Bot Management Commands:**
+• `/list_bots` - Show all active bots
+• `/stop_bot <name>` - Stop a specific bot
+• `/pool_status` - Show detailed token pool status
+
+**Token Management Commands:**
+• `/add_token <token>` - Add new BotFather token to pool
+• `/validate_token <token>` - Validate BotFather token
+• `/configure_bot <token> <name> <purpose>` - Configure bot via BotFather APIs
+
+**General Commands:**
 • `/help` - Show this help message
 
 **Quick Creation:**
@@ -334,6 +368,15 @@ Just tell me what you want! Examples:
 **Button Creation:**
 Use /start and click the quick creation buttons for instant bot creation.
 
+**Multi-Bot Support:**
+The factory now supports multiple concurrent bots using a token pool system! 🎯
+
+**Complete Workflow:**
+1. Get token from @BotFather
+2. `/add_token <your_token>` - Add to pool
+3. `/configure_bot <token> "Name" "Purpose"` - Set up bot
+4. Create bot normally (button or text)
+
 **Need Help?**
 Send any message describing what bot you want, and I'll help you create it! 🚀"""
 
@@ -341,6 +384,369 @@ Send any message describing what bot you want, and I'll help you create it! 🚀
         await rate_limited_call(
             FACTORY_BOT_TOKEN,
             update.message.reply_text(help_text, parse_mode="Markdown")
+        )
+
+
+@safe_telegram_operation(
+    "list_bots_command", "Sorry, I couldn't process your /list_bots command. Please try again."
+)
+async def list_bots_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /list_bots command - show all active bots"""
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    logger.info(f"📱 [FACTORY BOT] /list_bots from user {user_id}")
+
+    if prototype and prototype.telegram_manager:
+        pool_status = prototype.telegram_manager.get_pool_status()
+        
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(pool_status, parse_mode="Markdown")
+            )
+    else:
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text("❌ Bot management not available")
+            )
+
+
+@safe_telegram_operation(
+    "stop_bot_command", "Sorry, I couldn't process your /stop_bot command. Please try again."
+)
+async def stop_bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /stop_bot command - stop a specific bot by name"""
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    logger.info(f"📱 [FACTORY BOT] /stop_bot from user {user_id}")
+
+    # Get bot name from command arguments
+    bot_name = None
+    if context.args:
+        bot_name = " ".join(context.args)
+    
+    if not bot_name:
+        help_text = """🛑 **Stop Bot Command**
+
+**Usage:** `/stop_bot <bot_name>`
+
+**Example:** `/stop_bot HelperBot`
+
+Use `/list_bots` to see all active bots."""
+        
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(help_text, parse_mode="Markdown")
+            )
+        return
+
+    if prototype and prototype.telegram_manager:
+        result = await prototype.telegram_manager.stop_bot_by_name(bot_name)
+        
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(result)
+            )
+    else:
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text("❌ Bot management not available")
+            )
+
+
+@safe_telegram_operation(
+    "pool_status_command", "Sorry, I couldn't process your /pool_status command. Please try again."
+)
+async def pool_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /pool_status command - show detailed token pool status"""
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    logger.info(f"📱 [FACTORY BOT] /pool_status from user {user_id}")
+
+    if prototype and prototype.telegram_manager:
+        stats = prototype.telegram_manager.token_pool.get_pool_stats()
+        
+        status_text = f"""🎯 **Token Pool Status**
+
+📊 **Pool Statistics:**
+• Total tokens: {stats['total_tokens']}
+• Available tokens: {stats['available_tokens']}
+• Allocated tokens: {stats['allocated_tokens']}
+• Active bots: {stats['active_bots']}
+
+📈 **Status Breakdown:**"""
+
+        for status, count in stats['status_breakdown'].items():
+            status_emoji = {"running": "🟢", "starting": "🟡", "stopping": "🟠", "error": "🔴", "created": "⚪"}.get(status, "⚫")
+            status_text += f"\n• {status_emoji} {status.title()}: {count}"
+
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(status_text, parse_mode="Markdown")
+            )
+    else:
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text("❌ Bot management not available")
+            )
+
+
+@safe_telegram_operation(
+    "add_token_command", "Sorry, I couldn't process your /add_token command. Please try again."
+)
+async def add_token_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /add_token command - add new BotFather token to pool"""
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    logger.info(f"📱 [FACTORY BOT] /add_token from user {user_id}")
+
+    # Get token from command arguments
+    if not context.args or len(context.args) != 1:
+        help_text = """🔑 **Add Token Command**
+
+**Usage:** `/add_token <bot_token>`
+
+**Example:** `/add_token 123456789:ABCdefGhIjKlMnOpQrStUvWxYz`
+
+Get your token from @BotFather after creating a new bot.
+The token will be validated and added to the pool."""
+
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(help_text, parse_mode="Markdown")
+            )
+        return
+
+    token = context.args[0].strip()
+    
+    if prototype and prototype.telegram_manager:
+        # Import BotFather integration
+        from src.botfather_integration import BotFatherIntegration
+        
+        # Create BotFather integration instance
+        botfather = BotFatherIntegration()
+        
+        # Validate token first
+        validation_result = await botfather.validate_bot_token(token)
+        
+        if not validation_result["valid"]:
+            error_msg = f"❌ **Invalid Token**\n\nError: {validation_result['error']}\n\nPlease check your token from @BotFather."
+            if FACTORY_BOT_TOKEN:
+                await rate_limited_call(
+                    FACTORY_BOT_TOKEN,
+                    update.message.reply_text(error_msg, parse_mode="Markdown")
+                )
+            return
+        
+        # Add to token pool
+        success = prototype.telegram_manager.token_pool.add_token(token)
+        
+        if success:
+            bot_info = validation_result["bot_info"]
+            success_msg = f"""✅ **Token Added Successfully!**
+
+🤖 **Bot Info:**
+• Name: {bot_info.get('first_name', 'Unknown')}
+• Username: @{bot_info.get('username', 'not_set')}
+• ID: {bot_info.get('id')}
+
+The token is now available in the pool for bot creation!
+
+Use `/configure_bot {token[:10]}...` to set up commands and description."""
+            
+            if FACTORY_BOT_TOKEN:
+                await rate_limited_call(
+                    FACTORY_BOT_TOKEN,
+                    update.message.reply_text(success_msg, parse_mode="Markdown")
+                )
+        else:
+            error_msg = "❌ **Failed to Add Token**\n\nToken may already exist in pool or be invalid."
+            if FACTORY_BOT_TOKEN:
+                await rate_limited_call(
+                    FACTORY_BOT_TOKEN,
+                    update.message.reply_text(error_msg, parse_mode="Markdown")
+                )
+    else:
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text("❌ Token management not available")
+            )
+
+
+@safe_telegram_operation(
+    "validate_token_command", "Sorry, I couldn't process your /validate_token command. Please try again."
+)
+async def validate_token_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /validate_token command - validate BotFather token"""
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    logger.info(f"📱 [FACTORY BOT] /validate_token from user {user_id}")
+
+    # Get token from command arguments
+    if not context.args or len(context.args) != 1:
+        help_text = """🔍 **Validate Token Command**
+
+**Usage:** `/validate_token <bot_token>`
+
+**Example:** `/validate_token 123456789:ABCdefGhIjKlMnOpQrStUvWxYz`
+
+This will test if your BotFather token is valid and show bot information."""
+
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(help_text, parse_mode="Markdown")
+            )
+        return
+
+    token = context.args[0].strip()
+    
+    # Import BotFather integration
+    from src.botfather_integration import BotFatherIntegration
+    
+    # Create BotFather integration instance
+    botfather = BotFatherIntegration()
+    
+    # Validate token
+    validation_result = await botfather.validate_bot_token(token)
+    
+    if validation_result["valid"]:
+        bot_info = validation_result["bot_info"]
+        success_msg = f"""✅ **Token Valid!**
+
+🤖 **Bot Information:**
+• Name: {bot_info.get('first_name', 'Unknown')}
+• Username: @{bot_info.get('username', 'not_set')}
+• ID: {bot_info.get('id')}
+• Can join groups: {bot_info.get('can_join_groups', False)}
+• Can read all messages: {bot_info.get('can_read_all_group_messages', False)}
+• Supports inline: {bot_info.get('supports_inline_queries', False)}
+
+Use `/add_token {token[:10]}...` to add this token to the pool."""
+    else:
+        success_msg = f"""❌ **Token Invalid**
+
+**Error:** {validation_result['error']}
+**Code:** {validation_result.get('error_code', 'Unknown')}
+
+Please check your token from @BotFather."""
+
+    if FACTORY_BOT_TOKEN:
+        await rate_limited_call(
+            FACTORY_BOT_TOKEN,
+            update.message.reply_text(success_msg, parse_mode="Markdown")
+        )
+
+
+@safe_telegram_operation(
+    "configure_bot_command", "Sorry, I couldn't process your /configure_bot command. Please try again."
+)
+async def configure_bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /configure_bot command - configure bot via BotFather APIs"""
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+
+    user_id = str(update.effective_user.id)
+    logger.info(f"📱 [FACTORY BOT] /configure_bot from user {user_id}")
+
+    # Get arguments
+    if not context.args or len(context.args) < 3:
+        help_text = """⚙️ **Configure Bot Command**
+
+**Usage:** `/configure_bot <token> <name> <purpose>`
+
+**Example:** `/configure_bot 123456789:ABC... "MyBot" "Customer support assistant"`
+
+This will:
+• Validate the token
+• Set default commands (/start, /help, /about)
+• Set bot description and short description
+• Configure the bot name
+
+Use quotes for multi-word names/purposes."""
+
+        if FACTORY_BOT_TOKEN:
+            await rate_limited_call(
+                FACTORY_BOT_TOKEN,
+                update.message.reply_text(help_text, parse_mode="Markdown")
+            )
+        return
+
+    token = context.args[0].strip()
+    bot_name = context.args[1].strip('"\'')
+    bot_purpose = " ".join(context.args[2:]).strip('"\'')
+    
+    # Import BotFather integration
+    from src.botfather_integration import BotFatherIntegration
+    
+    # Create BotFather integration instance
+    botfather = BotFatherIntegration()
+    
+    # Configure bot
+    setup_result = await botfather.full_bot_setup(token, bot_name, bot_purpose)
+    
+    if setup_result["token_valid"]:
+        bot_info = setup_result["bot_info"]
+        
+        status_items = []
+        if setup_result["commands_set"]:
+            status_items.append("✅ Commands configured")
+        else:
+            status_items.append("❌ Commands failed")
+            
+        if setup_result["description_set"]:
+            status_items.append("✅ Description set")
+        else:
+            status_items.append("❌ Description failed")
+            
+        if setup_result["short_description_set"]:
+            status_items.append("✅ Short description set")
+        else:
+            status_items.append("❌ Short description failed")
+        
+        status_text = "\n".join(status_items)
+        
+        result_msg = f"""🤖 **Bot Configuration Result**
+
+**Bot:** @{bot_info.get('username', 'unknown')}
+**Name:** {bot_name}
+**Purpose:** {bot_purpose}
+
+**Configuration Status:**
+{status_text}
+
+{f"**Errors:** {', '.join(setup_result['errors'])}" if setup_result['errors'] else ""}
+
+The bot is now ready for use!"""
+    else:
+        result_msg = f"""❌ **Configuration Failed**
+
+**Errors:** {', '.join(setup_result['errors'])}
+
+Please check your token and try again."""
+
+    if FACTORY_BOT_TOKEN:
+        await rate_limited_call(
+            FACTORY_BOT_TOKEN,
+            update.message.reply_text(result_msg, parse_mode="Markdown")
         )
 
 
@@ -456,42 +862,52 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             ),
         )
 
-        # Start the created bot with proper error handling
-        if prototype.active_created_bot and prototype.created_bot_state == "created":
-            logger.info("🚀 [FACTORY BOT] Starting created bot with tool...")
-            username = await prototype.start_created_bot(prototype.active_created_bot)
-            if username and prototype.created_bot_state == "running":
-                if FACTORY_BOT_TOKEN and query.message:
-                    await rate_limited_call(
-                        FACTORY_BOT_TOKEN,
-                        query.message.reply_text(
-                        f"🌟 DIGITAL SOUL AWAKENED! 🌟\n\n"
-                        f"Behold! {template['name']} draws their first digital breath!\n\n"
-                        f"🔗 Sacred Portal: https://t.me/{username}\n"
-                        f"⚡ {template['tool']} is ready to serve!\n\n"
-                        f"Go forth and discover the magic of your new companion! ✨"
-                    ),
-                )
-                logger.info(f"✅ [FACTORY BOT] {template['name']} now live at @{username}")
+        # Start the created bot with proper error handling using token pool system
+        active_bots = prototype.telegram_manager.token_pool.get_active_bots()
+        
+        if active_bots:
+            # Get the most recently created bot (last in the list)
+            latest_bot = active_bots[-1]
+            
+            if latest_bot.status == "created":
+                logger.info(f"🚀 [FACTORY BOT] Starting created bot '{latest_bot.name}' with tool...")
+                
+                # Start the bot using the new token pool system
+                result = await prototype.telegram_manager.start_bot_by_token(latest_bot.token)
+                
+                if "🚀" in result and "started successfully" in result:
+                    # Extract username from the result message 
+                    import re
+                    username_match = re.search(r'@(\w+)', result)
+                    username = username_match.group(1) if username_match else latest_bot.username
+                    
+                    if FACTORY_BOT_TOKEN and query.message:
+                        await rate_limited_call(
+                            FACTORY_BOT_TOKEN,
+                            query.message.reply_text(
+                            f"🌟 DIGITAL SOUL AWAKENED! 🌟\n\n"
+                            f"Behold! {template['name']} draws their first digital breath!\n\n"
+                            f"🔗 Sacred Portal: https://t.me/{username}\n"
+                            f"⚡ {template['tool']} is ready to serve!\n\n"
+                            f"Go forth and discover the magic of your new companion! ✨"
+                        ),
+                    )
+                    logger.info(f"✅ [FACTORY BOT] {template['name']} now live at @{username}")
+                else:
+                    if FACTORY_BOT_TOKEN and query.message:
+                        await rate_limited_call(
+                            FACTORY_BOT_TOKEN,
+                            query.message.reply_text(
+                            f"❌ **{template['name']} failed to awaken**\n\n"
+                            f"Error: {result}\n"
+                            f"The digital realm seems turbulent. Please try again."
+                        ),
+                    )
+                    logger.error(f"❌ [FACTORY BOT] Failed to start {template['name']}: {result}")
             else:
-                if FACTORY_BOT_TOKEN and query.message:
-                    await rate_limited_call(
-                        FACTORY_BOT_TOKEN,
-                        query.message.reply_text(
-                        f"❌ **{template['name']} failed to awaken**\n\n"
-                        f"Status: {prototype.created_bot_state}\n"
-                        f"The digital realm seems turbulent. Please try again."
-                    ),
-                )
-                logger.error(
-                    f"❌ [FACTORY BOT] Failed to start {template['name']}, state: {prototype.created_bot_state}"
-                )
-        elif prototype.active_created_bot:
-            logger.error(
-                f"❌ [FACTORY BOT] Created bot in wrong state: {prototype.created_bot_state}"
-            )
+                logger.error(f"❌ [FACTORY BOT] Latest bot is in wrong state: {latest_bot.status}")
         else:
-            logger.error("❌ [FACTORY BOT] No active created bot to start")
+            logger.error("❌ [FACTORY BOT] No bots in token pool to start")
     elif FACTORY_BOT_TOKEN:
         await rate_limited_call(
             FACTORY_BOT_TOKEN, query.edit_message_text("❌ Unknown button pressed.")
@@ -512,6 +928,14 @@ async def start_telegram_bot(bot_token: str) -> None:
     application.add_handler(CommandHandler("list_personalities", list_personalities_command))
     application.add_handler(CommandHandler("create_bot", create_bot_command))
     application.add_handler(CommandHandler("help", help_command))
+    # Multi-bot management commands
+    application.add_handler(CommandHandler("list_bots", list_bots_command))
+    application.add_handler(CommandHandler("stop_bot", stop_bot_command))
+    application.add_handler(CommandHandler("pool_status", pool_status_command))
+    # Token management commands
+    application.add_handler(CommandHandler("add_token", add_token_command))
+    application.add_handler(CommandHandler("validate_token", validate_token_command))
+    application.add_handler(CommandHandler("configure_bot", configure_bot_command))
     application.add_handler(CallbackQueryHandler(handle_button_callback))
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_telegram_message)
@@ -566,6 +990,10 @@ async def start_fastapi_server() -> None:
 
 async def main() -> None:
     """Main entry point - dual server setup"""
+
+    # Start event loop monitoring FIRST to catch any issues during startup
+    await start_monitoring("main_loop")
+    logger.info("🔍 Event loop health monitoring started")
 
     # Get required environment variables
     bot_token = (
