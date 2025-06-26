@@ -68,9 +68,11 @@ async def main():
     print(f"🎯 Final bot callback IDs ({len(bot_ids)}): {bot_ids}")
     # Retrieve tokens for each bot via BotFather callbacks
     token_map = {}
-    for bot_id in bot_ids:
-        print(f"🔍 Retrieving token for bot id: {bot_id}")
-        await client.send_message("BotFather", bot_id)
+    for username, bot_id in zip(bot_usernames, bot_ids):
+        print(f"🔍 Retrieving token for {username} (ID: {bot_id})")
+        await client.send_message("BotFather", "/token")
+        await asyncio.sleep(1)
+        await client.send_message("BotFather", username)
         await asyncio.sleep(3)
         messages = await client.get_messages("BotFather", limit=3)
         for msg in messages:
@@ -78,7 +80,7 @@ async def main():
                 match = re.search(r'(\d+:[A-Za-z0-9_-]+)', msg.text)
                 if match:
                     token_map[bot_id] = match.group(1)
-                    print(f"🔑 Token for {bot_id}: {token_map[bot_id][:10]}...")
+                    print(f"🔑 Token for {username}: {token_map[bot_id][:10]}...")
                     break
     # Save the collected data to a YAML file
     os.makedirs("data", exist_ok=True)
