@@ -1,15 +1,35 @@
 from abc import ABC, abstractmethod
 import inspect
+import logging
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-# decorator to mark methods as /commands
 def telegram_bot_command(description: str):
+    """
+    Decorator for telegram command methods.
+    Registers metadata and adds exception handling.
+    """
     def decorator(fn):
-        fn._telegram_cmd = {
-            "name": fn.__name__,
-            "description": description
-        }
-        return fn
+        # register command name & description
+        fn._telegram_cmd = {"name": fn.__name__, "description": description}
+
+        async def wrapped(self, update, context):
+            try:
+                return await fn(self, update, context)
+            except Exception as ex:
+                # log full traceback
+                logger = getattr(self, "logger", logging.getLogger(__name__))
+                logger.error(f"Error in {fn.__name__}: {ex}", exc_info=True)
+                # notify user
+                try:
+                    await update.message.reply_text(
+                        "❌ Command failed: " + str(ex),
+                        parse_mode="Markdown"
+                    )
+                except Exception:
+                    # swallow reply errors
+                    pass
+        wrapped._telegram_cmd = fn._telegram_cmd
+        return wrapped
     return decorator
 
 class AbstractTelegramBot(ABC):
