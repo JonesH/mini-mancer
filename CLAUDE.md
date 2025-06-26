@@ -129,10 +129,10 @@ uv run pytest tests/                     # Run test suite
 
 ### Error Handling
 - Avoid excessive or comprehensive error handling; let exceptions and tracebacks bubble up
-- Only catch exceptions when there’s a clear, necessary recovery path
+- Only catch exceptions when there's a clear, necessary recovery path
 
 ### Comments and Documentation
-- Avoid comments unless code isn’t self-explanatory
+- Avoid comments unless code isn't self-explanatory
 - Provide short, concise docstrings for public-facing methods
 
 ## Project Structure
@@ -152,6 +152,8 @@ uv run pytest tests/                     # Run test suite
 - `src/api_router.py` - FastAPI route handlers for OpenServ integration
 - `src/api_models.py` - Pydantic models for API requests/responses
 - `src/telegram_integration.py` - Telegram bot lifecycle management
+- `src/botfather_integration.py` - BotFather automation using Telethon client API
+- `src/token_pool_manager.py` - Multi-bot token pool management system
 
 ### Utilities & Infrastructure
 - `src/utils/` - Error handling and utility functions
@@ -170,6 +172,7 @@ uv run pytest tests/                     # Run test suite
 - `agno` - The main AI agent framework for intelligent bot creation
 - `fastapi` - Web framework for OpenServ integration endpoints
 - `python-telegram-bot` - Telegram bot API integration
+- `telethon` - Telegram client API for BotFather automation and testing
 - `psycopg[binary]` - PostgreSQL database connectivity
 
 ## Git Guidelines
@@ -232,14 +235,16 @@ uv run mypy src/ main.py         # Type checking
 **CRITICAL RULE:** Never claim a Telegram bot command is "fixed" or "working" without actual functional testing via Telegram API.
 
 **Testing Protocol:**
-1. **PRIMARY TEST METHOD:** Use actual Telegram API calls to test bot commands
-2. **Verification Required:** Confirm bot responds as expected to user interactions  
-3. **Error Validation:** Verify no crashes, malfunction, or error messages to users
-4. **Success Criteria:** User receives intended response content and formatting
+1. **PRIMARY TEST METHOD:** Use Telegram CLIENT API (Telethon) with user credentials to test created bots
+2. **CRITICAL:** NEVER use bot API (curl with bot tokens) to test created bots - use CLIENT API only
+3. **Verification Required:** Confirm bot responds as expected to real user interactions  
+4. **Error Validation:** Verify no crashes, malfunction, or error messages to users
+5. **Success Criteria:** User receives intended response content and formatting
 
 **Testing Tools:**
-- Use curl commands with bot token to send messages
-- Test via actual Telegram client interaction
+- **CORRECT:** Use Telethon with TELEGRAM_API_ID/TELEGRAM_API_HASH to act as real user
+- **CORRECT:** Send messages TO created bots using client API
+- **WRONG:** Never use curl with bot tokens to test created bots
 - Verify response content matches expectations
 - Check logs only as secondary validation
 
@@ -251,15 +256,163 @@ uv run mypy src/ main.py         # Type checking
 - ❌ NOT "container starts successfully"
 - ❌ NOT "no immediate crashes in logs"
 
-**Example Testing Commands:**
-```bash
-# Test /start command
-curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-  -H "Content-Type: application/json" \
-  -d '{"chat_id": "${TEST_USER_ID}", "text": "/start"}'
+**Example Testing Approach:**
+```python
+# CORRECT: Use Telethon to test created bots
+from telethon import TelegramClient
 
-# Test /create_quick command  
-curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-  -H "Content-Type: application/json" \
-  -d '{"chat_id": "${TEST_USER_ID}", "text": "/create_quick"}'
+client = TelegramClient('session', API_ID, API_HASH)
+await client.start()
+
+# Send message TO created bot as real user
+await client.send_message('@created_bot_username', 'Hello bot!')
+
+# Wait for and verify bot response
+# This is the ONLY way to properly test created bots
 ```
+
+**NEVER DO THIS for created bots:**
+```bash
+# WRONG: Don't use bot API to test created bots
+curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" # WRONG!
+```
+
+## BotFather Integration & Token Management
+
+### BotFather Automation System
+
+Mini-mancer includes a comprehensive BotFather integration system that automates bot configuration using the Telethon client API. This system mimics human interaction with @BotFather to configure newly created bots.
+
+### Key Components
+
+**Token Pool Management (`src/token_pool_manager.py`):**
+- Multi-bot concurrent deployment system
+- Automatic token validation and pool management
+- Round-robin token allocation for load balancing
+- Persistent token storage with JSON-based pool files
+
+**BotFather Integration (`src/botfather_integration.py`):**
+- **CRITICAL:** Uses Telethon client API exclusively (never Bot API for @BotFather communication)
+- Automates conversations with @BotFather just like a human user would
+- Handles bot configuration: commands, descriptions, short descriptions
+- Validates bot tokens using Bot API `getMe` endpoint
+
+### BotFather Workflow Commands
+
+The system provides three main command handlers for token management:
+
+1. **`/add_token <token>`** - Add new BotFather token to pool with validation
+2. **`/validate_token <token>`** - Validate existing token and show bot info  
+3. **`/configure_bot <token>`** - Full bot setup with commands and descriptions
+
+### BotFather Communication Protocol
+
+**MANDATORY APPROACH:** All BotFather interactions MUST use Telethon client API:
+
+```python
+# CORRECT: BotFather automation using Telethon
+from telethon import TelegramClient
+
+client = TelegramClient('user_test_session', API_ID, API_HASH)
+await client.start()
+
+# 1. Send BotFather command
+await client.send_message('BotFather', '/setcommands')
+await asyncio.sleep(2)
+
+# 2. Send bot username (NOT token)
+await client.send_message('BotFather', '@your_bot_username')
+await asyncio.sleep(2)
+
+# 3. Send configuration data
+await client.send_message('BotFather', command_list)
+```
+
+**Critical BotFather Conversation Flow:**
+1. When BotFather receives commands like `/setcommands`, it responds with a ReplyKeyboardMarkup showing bot options
+2. **MUST** send the bot username (e.g., `@protomancer_supreme_bot`) as a message, not use callbacks
+3. **NEVER** send tokens directly to BotFather - always use username after validating token via Bot API
+
+### Token Validation Process
+
+**Two-Stage Validation:**
+1. **Bot API Validation** - Use `https://api.telegram.org/bot{token}/getMe` to validate token and get bot info
+2. **BotFather Configuration** - Use bot username (from validation) to configure via @BotFather
+
+```python
+# CORRECT: Token validation workflow
+# Step 1: Validate token and get username
+validation_result = await botfather.validate_bot_token(token)
+if validation_result["valid"]:
+    bot_username = f"@{validation_result['username']}"
+    
+    # Step 2: Configure via BotFather using username
+    await client.send_message('BotFather', '/setcommands')
+    await client.send_message('BotFather', bot_username)  # Use username, not token
+```
+
+### Session Management
+
+**Local Development:**
+- Uses existing `user_test_session.session` file for authenticated Telethon sessions
+- Run locally with: `dotenv run uv run python script.py` to access .env variables
+- Session files contain SQLite database with Telegram authentication data
+
+**Container Environment:**
+- Telethon sessions require interactive authentication (not suitable for containers)
+- Use local environment for BotFather integration testing and development
+
+### Error Handling & Success Detection
+
+**BotFather Response Analysis:**
+```python
+# Check BotFather responses for success/failure
+messages = await client.get_messages('BotFather', limit=3)
+for message in messages:
+    if message.text:
+        text = message.text.lower()
+        if any(success in text for success in ['success', 'updated', 'done']):
+            return {"success": True}
+        elif any(error in text for error in ['error', 'invalid', 'wrong']):
+            return {"success": False, "error": message.text}
+```
+
+### Testing BotFather Integration
+
+**Use the included test script:**
+```bash
+# Test BotFather integration locally
+dotenv run uv run python test_botfather_integration.py
+```
+
+**Verification Steps:**
+1. Validate token format and API connectivity
+2. Get bot username from Bot API
+3. Test @BotFather communication flow
+4. Verify configuration was applied successfully
+5. Test created bot responds to commands properly
+
+### Common Issues & Solutions
+
+**"Invalid bot selected" Error:**
+- Cause: Sending token instead of username to BotFather
+- Solution: Always send `@username` after validating token
+
+**Session Authentication Errors:**
+- Cause: Missing or invalid Telethon session file
+- Solution: Run authentication locally, copy session file to project
+
+**Rate Limiting:**
+- BotFather has strict rate limits
+- Use `asyncio.sleep(2)` between messages
+- Implement exponential backoff for retries
+
+## Event Loop Integration Considerations
+
+### Event Loop Challenges
+- The project now needs to integrate multiple event loops:
+  - FastAPI's event loop
+  - Botmother event loop
+  - Event loops for created bots
+- Ensuring seamless coordination between these event loops is critical
+  - Interesting challenge: making different event loop systems work together flawlessly

@@ -168,7 +168,7 @@ async def prototype_agent_instance():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def bot_interaction_helper(telegram_bot_session):
+async def bot_interaction_helper(telegram_bot_session, bot_test_config):
     """Helper for common bot interaction patterns"""
     
     class BotInteractionHelper:

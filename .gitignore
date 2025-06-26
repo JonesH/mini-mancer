@@ -201,3 +201,6 @@ node_modules/
 package-lock.json
 package.json
 *.session
+data/
+user_test_session.session
+user_test_session.session-journal

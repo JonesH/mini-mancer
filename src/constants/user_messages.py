@@ -63,7 +63,7 @@ ERROR_MESSAGES = {
     "advanced_creation_error": "❌ Error creating sophisticated bot: {error}",
     "general_error": "Sorry, I encountered an error: {error}",
     "unknown_content": "I received your message, but I'm not sure how to handle this type of content yet.",
-    "bot_creation_disabled": "❌ Bot creation is currently disabled. BOT_TOKEN_1 is not configured.",
+    "bot_creation_disabled": "❌ Bot creation is currently disabled. No tokens available in pool.\n\nUse `/add_token <your_token>` to add a BotFather token to the pool.",
     "invalid_bot_name": "❌ Bot name must be at least 2 characters long.",
     "invalid_bot_purpose": "❌ Bot purpose must be at least 5 characters long.",
     "bot_start_failed": "❌ Failed to start bot: {error}",

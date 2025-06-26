@@ -1,29 +1,27 @@
-# Mini-Mancer Automated Testing Framework
+# Mini-Mancer Comprehensive Testing Suite
 
-Comprehensive automated testing system for validating Mini-Mancer bot creation and management functionality using real Telegram API interactions.
+A comprehensive testing framework that validates all Mini-Mancer functionality in order of decreasing relevance and criticality.
 
 ## Overview
 
-This testing framework provides automated validation of:
-- **Factory Bot Operations** - Bot creation commands, inline keyboards, error handling
-- **Created Bot Interactions** - Personality validation, tool integration, AI responses  
-- **Integration Testing** - End-to-end workflows, API integration, system resilience
-- **Performance Testing** - Concurrency, memory usage, stress testing, rate limiting
-- **Utility Functions** - Test helpers, mock objects, resource management
+The testing suite is organized into 5 tiers, each with specific success criteria:
 
-## Test Structure
+| Tier | Name | Priority | Success Criteria | Coverage |
+|------|------|----------|------------------|----------|
+| 1 | Critical Core Functionality | **MUST PASS** | 100% | Bot creation, command handlers, naming, media processing |
+| 2 | Essential User Experience | High | 95% | Inline keyboard, text creation, link accessibility, error handling |
+| 3 | Performance & Reliability | Medium | 90% | Rate limiting, concurrency, load testing, memory monitoring |
+| 4 | Integration & Advanced Features | Medium-Low | 80% | OpenServ API, compilation pipeline, WebSocket monitoring |
+| 5 | Comprehensive Coverage | Low | 70% | Edge cases, security, end-to-end integration |
 
-```
-tests/
-├── conftest.py              # Core test fixtures and configuration
-├── test_factory_bot.py      # Factory bot functionality tests
-├── test_created_bots.py     # Created bot validation tests  
-├── test_integration.py      # End-to-end integration tests
-├── test_performance.py      # Performance and stress tests
-├── test_utils.py           # Test utilities and helpers
-├── pytest.ini             # Pytest configuration
-└── README.md              # This documentation
-```
+## Test Files
+
+- `test_tier1_critical_functionality.py` - Core system functionality tests
+- `test_tier2_user_experience.py` - User-facing feature tests  
+- `test_tier3_performance_reliability.py` - Performance and stability tests
+- `test_tier4_integration_advanced.py` - Integration and advanced feature tests
+- `test_tier5_comprehensive_coverage.py` - Edge cases and security tests
+- `run_comprehensive_tests.py` - Main test runner script
 
 ## Setup Requirements
 

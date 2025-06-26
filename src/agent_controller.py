@@ -205,10 +205,10 @@ class AgentController:
 
     # Delegation methods for bot operations
     async def create_new_bot_instant(
-        self, bot_name: str, bot_purpose: str, personality: str = "helpful"
+        self, bot_name: str, bot_purpose: str, personality: str = "helpful", user_id: str | None = None
     ) -> str:
         """Create a new bot using instant mode"""
-        return await self.telegram_manager.create_bot_instant(bot_name, bot_purpose, personality)
+        return await self.telegram_manager.create_bot_instant(bot_name, bot_purpose, personality, user_id)
 
     def create_new_bot_advanced(self, requirements: BotRequirements) -> str:
         """Create a new bot using advanced mode"""
