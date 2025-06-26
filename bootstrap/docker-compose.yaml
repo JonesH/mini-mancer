@@ -33,6 +33,7 @@ services:
       - TEST_USER_ID=${TEST_USER_ID}
       - DEBUG=${DEBUG:-false}
       - DATABASE_URL=postgresql+psycopg://ai:ai@postgres:5432/ai
+      - PYTHONPATH=/app/src
     ports:
       - "14159:14159"
     volumes:
