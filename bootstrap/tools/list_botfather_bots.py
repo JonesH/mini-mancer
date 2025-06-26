@@ -1,5 +1,6 @@
 import os
 import yaml
+import re
 import asyncio
 from dotenv import load_dotenv
 from src.telethon_client import TelethonSessionManager
@@ -65,10 +66,28 @@ async def main():
     # Completed pagination, final list of bots and IDs:
     print(f"🎯 Final bot list ({len(bot_usernames)}): {bot_usernames}")
     print(f"🎯 Final bot callback IDs ({len(bot_ids)}): {bot_ids}")
-    # Save the collected bot usernames to a YAML file
+    # Retrieve tokens for each bot via BotFather callbacks
+    token_map = {}
+    for bot_id in bot_ids:
+        print(f"🔍 Retrieving token for bot id: {bot_id}")
+        await client.send_message("BotFather", bot_id)
+        await asyncio.sleep(3)
+        messages = await client.get_messages("BotFather", limit=3)
+        for msg in messages:
+            if msg.text:
+                match = re.search(r'(\d+:[A-Za-z0-9_-]+)', msg.text)
+                if match:
+                    token_map[bot_id] = match.group(1)
+                    print(f"🔑 Token for {bot_id}: {token_map[bot_id][:10]}...")
+                    break
+    # Save the collected data to a YAML file
     os.makedirs("data", exist_ok=True)
     with open("data/botfather_bots.yaml", "w") as f:
-        yaml.safe_dump(bot_usernames, f)
+        yaml.safe_dump({
+            "bot_usernames": bot_usernames,
+            "bot_callback_ids": bot_ids,
+            "bot_tokens": token_map
+        }, f)
 
 if __name__ == "__main__":
     asyncio.run(main())
