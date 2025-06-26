@@ -15,21 +15,37 @@ async def main():
     await client.send_message("BotFather", "/mybots")
     await asyncio.sleep(3)   # give BotFather time to reply
 
-    # fetch the latest BotFather response
-    messages = await client.get_messages("BotFather", limit=1)
-    out: list[dict] = []
-    if messages and messages[0].text:
-        for line in messages[0].text.splitlines():
-            l = line.strip()
-            if l.startswith("@"):
-                out.append({"username": l})
+    # Initialize a list to store bot usernames
+    bot_usernames = []
+    pagination_buttons = True
+    while pagination_buttons:
+        # Fetch the latest BotFather response
+        messages = await client.get_messages("BotFather", limit=1)
+        if messages and messages[0].text:
+            for line in messages[0].text.splitlines():
+                l = line.strip()
+                if l.startswith("@"):
+                    bot_usernames.append(l)
 
-    # clean up
-    await session.disconnect()
+            # Check for pagination buttons
+            if messages[0].reply_markup and messages[0].reply_markup.rows:
+    if messages[0].reply_markup and messages[0].reply_markup.rows:
+    pagination_buttons = any("Next" in button.text for button in messages[0].reply_markup.rows[0].buttons)
+else:
+    pagination_buttons = False
+else:
+    pagination_buttons = False
+            if pagination_buttons:
+                # Click the next button
+                await client.send_message("BotFather", "Next")
+                await asyncio.sleep(3)  # Wait for the next page
+        else:
+            pagination_buttons = False
 
+    # Save the collected bot usernames to a YAML file
     os.makedirs("bootstrap/data", exist_ok=True)
     with open("bootstrap/data/botfather_bots.yaml", "w") as f:
-        yaml.safe_dump(out, f)
+        yaml.safe_dump(bot_usernames, f)
 
 if __name__ == "__main__":
     asyncio.run(main())
