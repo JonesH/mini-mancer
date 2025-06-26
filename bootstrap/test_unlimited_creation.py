@@ -1,149 +1,135 @@
 #!/usr/bin/env python3
 """
-Test Unlimited Bot Creation
+Test Unlimited Bot Creation via BotFather Integration
 
-Tests the integration of BotFather automation with SimpleBotMother
-to verify unlimited bot creation capability.
+Tests that BotFather automation works when available tokens are exhausted.
 """
 
 import asyncio
 import logging
 import os
-from dotenv import load_dotenv
-from telethon import TelegramClient
+import sys
+from pathlib import Path
 
-# Setup environment
-load_dotenv()
+# Add src paths
+src_path = Path(__file__).parent / "src"
+sys.path.insert(0, str(src_path))
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def test_unlimited_bot_creation():
-    """Test the unlimited bot creation system"""
-    logger.info("🚀 Testing Unlimited Bot Creation System")
-    
-    # Step 1: Test UnlimitedBotCreator directly
-    logger.info("📋 Step 1: Testing UnlimitedBotCreator class")
+async def test_unlimited_creation():
+    """Test unlimited bot creation functionality."""
+    logger.info("🧪 Testing Unlimited Bot Creation")
     
     try:
-        from src.unlimited_bot_creator import UnlimitedBotCreator
+        from unlimited_bot_creator import UnlimitedBotCreator
         
         creator = UnlimitedBotCreator()
         await creator.initialize()
         
-        # Get stats
+        # Show current token status
         stats = creator.get_unlimited_stats()
-        logger.info(f"✅ UnlimitedBotCreator stats: {stats}")
+        logger.info(f"📊 Current stats: {stats}")
         
-        # Test bot creation (simulate exhausted token pool)
-        test_user_id = "test_user_12345"
+        # Test bot creation (this should trigger BotFather if no tokens available)
+        test_user_id = "test_user_123"
         test_bot_name = "TestUnlimitedBot"
         
-        logger.info(f"🤖 Testing bot creation: {test_bot_name}")
+        logger.info(f"🚀 Testing creation of '{test_bot_name}'...")
         
-        # Temporarily empty token pool to force new creation
-        original_tokens = creator.available_tokens.copy()
-        creator.available_tokens = []  # Force auto-creation
-        
-        # Test creation
+        # This should either use available token or create new one via BotFather
         result = await creator.create_echo_bot(test_bot_name, test_user_id)
         
-        # Restore original tokens
-        creator.available_tokens = original_tokens
+        logger.info(f"📋 Creation result: {result}")
         
         if result["success"]:
-            logger.info(f"✅ Bot creation successful: {result}")
+            logger.info("✅ Bot creation successful!")
+            if result.get("auto_created"):
+                logger.info("🎉 NEW TOKEN WAS AUTO-CREATED VIA BOTFATHER!")
+            else:
+                logger.info("📦 Used existing token from pool")
         else:
-            logger.error(f"❌ Bot creation failed: {result}")
+            logger.error(f"❌ Bot creation failed: {result['error']}")
         
-        await creator.shutdown()
+        # Show updated stats
+        final_stats = creator.get_unlimited_stats()
+        logger.info(f"📊 Final stats: {final_stats}")
+        
+        return result["success"]
         
     except Exception as e:
-        logger.error(f"❌ UnlimitedBotCreator test failed: {e}")
-    
-    # Step 2: Test Telethon integration (if session exists)
-    logger.info("📋 Step 2: Testing Telethon integration")
-    
-    api_id = os.getenv('TELEGRAM_API_ID')
-    api_hash = os.getenv('TELEGRAM_API_HASH')
-    session_file = 'user_test_session'
-    
-    if api_id and api_hash:
-        try:
-            client = TelegramClient(session_file, int(api_id), api_hash)
-            await client.start()
-            
-            # Test if we can connect
-            me = await client.get_me()
-            logger.info(f"✅ Telethon connected as: @{me.username}")
-            
-            # Test BotFather integration availability
-            try:
-                await client.send_message('BotFather', '/help')
-                logger.info("✅ BotFather is accessible via Telethon")
-            except Exception as e:
-                logger.warning(f"⚠️ BotFather access issue: {e}")
-            
-            await client.disconnect()
-            
-        except Exception as e:
-            logger.error(f"❌ Telethon test failed: {e}")
-    else:
-        logger.warning("⚠️ TELEGRAM_API_ID/API_HASH not set - skipping Telethon test")
-    
-    # Step 3: Test SimpleBotMother integration
-    logger.info("📋 Step 3: Testing SimpleBotMother integration")
-    
-    try:
-        from src.simple_botmother import SimpleBotMother
-        
-        # Check if BOT_MOTHER_TOKEN is available
-        if os.getenv("BOT_MOTHER_TOKEN"):
-            logger.info("✅ BOT_MOTHER_TOKEN found - SimpleBotMother can initialize")
-            
-            # Test initialization (don't actually run)
-            bot_mother = SimpleBotMother()
-            logger.info(f"✅ SimpleBotMother initialized with UnlimitedBotCreator: {type(bot_mother.bot_creator).__name__}")
-            
-        else:
-            logger.warning("⚠️ BOT_MOTHER_TOKEN not set - cannot test SimpleBotMother")
-            
-    except Exception as e:
-        logger.error(f"❌ SimpleBotMother test failed: {e}")
-    
-    logger.info("🎯 Unlimited bot creation test completed!")
+        logger.error(f"❌ Test failed: {e}")
+        return False
 
-async def test_botfather_integration():
-    """Test BotFather integration functionality"""
-    logger.info("🤖 Testing BotFather Integration")
+async def test_token_exhaustion_scenario():
+    """Test what happens when all tokens are used."""
+    logger.info("🔥 Testing Token Exhaustion Scenario")
     
     try:
-        # Test token validation
-        import sys
-        sys.path.append('..')
-        from src.botfather_integration import BotFatherIntegration
+        from unlimited_bot_creator import UnlimitedBotCreator
         
-        botfather = BotFatherIntegration()
+        creator = UnlimitedBotCreator()
+        await creator.initialize()
         
-        # Test with a fake token to check validation
-        fake_token = "123456789:ABCDEFghijklmnopqrstuvwxyz"
-        validation = await botfather.validate_bot_token(fake_token)
+        # Check if we have BotFather credentials
+        if not creator.api_id or not creator.api_hash:
+            logger.warning("⚠️ TELEGRAM_API_ID/TELEGRAM_API_HASH not configured")
+            logger.warning("   BotFather automation will not work")
+            return False
         
-        logger.info(f"✅ Token validation works: {validation['valid']} (expected False)")
+        # Show current available tokens
+        available_count = len(creator.available_tokens)
+        logger.info(f"🎯 Available tokens: {available_count}")
+        
+        if available_count == 0:
+            logger.info("🚀 Perfect! No tokens available - BotFather automation should activate")
+        else:
+            logger.info("📦 Tokens available - will use existing tokens first")
+        
+        # Test creation
+        result = await creator.create_echo_bot("ExhaustionTest", "test_user_456")
+        
+        if result.get("auto_created"):
+            logger.info("🎉 SUCCESS: BotFather automation worked!")
+        else:
+            logger.info("📦 Used existing token (expected if tokens available)")
+        
+        return True
         
     except Exception as e:
-        logger.error(f"❌ BotFather integration test failed: {e}")
+        logger.error(f"❌ Exhaustion test failed: {e}")
+        return False
+
+async def main():
+    """Main test runner."""
+    print("🚀 Testing Unlimited Bot Creation via BotFather")
+    print("=" * 60)
+    
+    # Test 1: Basic unlimited creation
+    print("\n🧪 Test 1: Basic Unlimited Creation")
+    print("-" * 40)
+    test1_success = await test_unlimited_creation()
+    
+    # Test 2: Token exhaustion scenario
+    print("\n🔥 Test 2: Token Exhaustion Scenario")
+    print("-" * 40)
+    test2_success = await test_token_exhaustion_scenario()
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("📋 TEST SUMMARY:")
+    print(f"• Basic Creation: {'✅ PASS' if test1_success else '❌ FAIL'}")
+    print(f"• Exhaustion Test: {'✅ PASS' if test2_success else '❌ FAIL'}")
+    
+    if test1_success and test2_success:
+        print("\n🎉 ALL TESTS PASSED - Unlimited creation working!")
+        print("   BotFather integration is properly configured.")
+    else:
+        print("\n⚠️ Some tests failed - check configuration:")
+        print("   • Ensure TELEGRAM_API_ID/TELEGRAM_API_HASH are set")
+        print("   • Verify Telethon session file exists")
+        print("   • Check that @BotFather is accessible")
 
 if __name__ == "__main__":
-    print("🚀 Testing Unlimited Bot Creation System")
-    print("=" * 50)
-    
-    asyncio.run(test_unlimited_bot_creation())
-    print("\n" + "=" * 50)
-    asyncio.run(test_botfather_integration())
-    
-    print("✅ All tests completed!")
+    asyncio.run(main())

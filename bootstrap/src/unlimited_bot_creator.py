@@ -32,20 +32,55 @@ class UnlimitedBotCreator(BotSpawner):
         super().__init__()
         
         # BotFather automation setup
-        self.api_id = int(os.getenv('TELEGRAM_API_ID'))
+        self.api_id = int(os.getenv('TELEGRAM_API_ID')) if os.getenv('TELEGRAM_API_ID') else None
         self.api_hash = os.getenv('TELEGRAM_API_HASH')
+        self.phone_number = os.getenv('TELEGRAM_PHONE_NUMBER')
         self.session_file = 'user_test_session'
         
         # Track auto-created bots to avoid conflicts
         self.auto_created_count = 0
+        
+        # Track BotFather automation availability
+        self.botfather_available = False
         
         logger.info("UnlimitedBotCreator initialized with BotFather automation")
     
     async def _get_client(self) -> TelegramClient:
         """Get authenticated Telethon client for BotFather automation."""
         client = TelegramClient(self.session_file, self.api_id, self.api_hash)
-        await client.start()
+        await client.start(phone=self.phone_number)
         return client
+    
+    async def _validate_telethon_session(self) -> bool:
+        """Check if Telethon authentication works without interaction."""
+        if not all([self.api_id, self.api_hash, self.phone_number]):
+            logger.warning("⚠️ Missing Telethon credentials - BotFather automation disabled")
+            return False
+            
+        try:
+            client = await self._get_client()
+            # Test authentication by getting our own info
+            me = await client.get_me()
+            await client.disconnect()
+            logger.info(f"✅ Telethon authentication validated: @{me.username or 'No username'}")
+            return True
+        except Exception as e:
+            logger.warning(f"⚠️ Telethon authentication failed: {e}")
+            logger.warning("   BotFather automation will be disabled")
+            return False
+    
+    async def initialize(self):
+        """Initialize UnlimitedBotCreator with session validation."""
+        # Initialize parent class first
+        await super().initialize()
+        
+        # Validate Telethon session for BotFather automation
+        self.botfather_available = await self._validate_telethon_session()
+        
+        if self.botfather_available:
+            logger.info("🚀 BotFather automation enabled and validated")
+        else:
+            logger.warning("⚠️ BotFather automation disabled - will use available tokens only")
     
     def _generate_bot_name(self, user_request: str) -> str:
         """Generate a unique bot name for BotFather."""
@@ -253,6 +288,13 @@ class UnlimitedBotCreator(BotSpawner):
         
         # If no tokens available, create a new one
         if not token_info:
+            if not self.botfather_available:
+                logger.warning("❌ No tokens available and BotFather automation disabled")
+                return {
+                    "success": False,
+                    "error": "No available bot tokens and BotFather automation unavailable. Please add more BOT_TOKEN_* environment variables or fix Telethon authentication."
+                }
+            
             logger.info("💡 No available tokens - creating new bot via BotFather...")
             
             # Attempt to create new bot
@@ -309,10 +351,10 @@ class UnlimitedBotCreator(BotSpawner):
                                   if token.get("auto_created", False))
         
         base_stats.update({
-            "unlimited_creation": True,
+            "unlimited_creation": self.botfather_available,
             "auto_created_tokens": auto_created_tokens,
             "total_auto_created": self.auto_created_count,
-            "botfather_automation": "enabled"
+            "botfather_automation": "enabled" if self.botfather_available else "disabled"
         })
         
         return base_stats
