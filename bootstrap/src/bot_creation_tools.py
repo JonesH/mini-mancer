@@ -160,18 +160,7 @@ class BotCreationTools:
                     start_message,
                     "The bot has basic /start and /help commands configured."
                 ],
-                "user_message": f"""
-🤖 **Bot Creation Successful!**
-
-**Bot Name:** {bot_name}
-**Username:** @{bot_username}  
-**Status:** {bot_status}
-**Link:** https://t.me/{bot_username}
-
-{start_message}
-
-Your bot is ready to use! Users can start chatting with it right away.
-                """.strip()
+                "user_message": f"\n🤖 **Bot Creation Successful!**\n\n**Bot Name:** {bot_name}\n**Username:** @{bot_username}  \n**Status:** {bot_status}\n**Link:** https://t.me/{bot_username}\n\n{start_message}\n\nYour bot is ready to use! Users can start chatting with it right away."
             }
             
         except Exception as e:
@@ -315,9 +304,10 @@ Your bot is ready to use! Users can start chatting with it right away.
             dict with user's bots
         """
         try:
-            bots = self.bot_registry.list_bots(user_id)
+            # Call the BotFather listing function
+            bot_usernames = await self._list_botfather_bots()
             
-            if not bots:
+            if not bot_usernames:
                 return {
                     "success": True,
                     "bots": [],
@@ -325,13 +315,12 @@ Your bot is ready to use! Users can start chatting with it right away.
                 }
             
             formatted_bots = []
-            for bot in bots:
+            for bot_username in bot_usernames:
                 formatted_bots.append({
-                    "name": bot["name"],
-                    "username": f"@{bot['username']}",
-                    "description": bot["description"],
-                    "status": bot["status"],
-                    "created": bot["created_at"]
+                    "username": bot_username,
+                    "name": bot_username,
+                    "status": "unknown",
+                    "description": "No description available"
                 })
             
             return {
@@ -340,14 +329,43 @@ Your bot is ready to use! Users can start chatting with it right away.
                 "count": len(formatted_bots),
                 "message": f"You have {len(formatted_bots)} bot(s) created."
             }
-            
         except Exception as e:
             logger.error(f"Failed to list bots for user {user_id}: {e}")
             return {
                 "success": False,
                 "error": f"Failed to retrieve bot list: {str(e)}"
             }
-    
+
+    async def _list_botfather_bots(self) -> list[str]:
+        """
+        Retrieve the list of bots from BotFather using pagination.
+        
+        Returns:
+            list of bot usernames
+        """
+        session = TelethonSessionManager("list_botfather_bots")
+        client = await session.initialize_client()
+        await client.send_message("BotFather", "/mybots")
+        await asyncio.sleep(3)  # give BotFather time to reply
+        
+        bot_usernames = []
+        pagination_buttons = True
+        while pagination_buttons:
+            messages = await client.get_messages("BotFather", limit=1)
+            if messages and messages[0].text:
+                for line in messages[0].text.splitlines():
+                    l = line.strip()
+                    if l.startswith("@"):
+                        bot_usernames.append(l)
+                pagination_buttons = any("Next" in button.text for button in messages[0].reply_markup.inline_keyboard[0])
+                if pagination_buttons:
+                    await client.send_message("BotFather", "Next")
+                    await asyncio.sleep(3)  # Wait for the next page
+            else:
+                pagination_buttons = False
+        await session.disconnect()
+        return bot_usernames;
+
     async def get_bot_status(self, bot_id: str) -> dict[str, Any]:
         """
         Get status and details of a specific bot.

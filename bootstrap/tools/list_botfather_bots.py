@@ -45,6 +45,7 @@ async def main():
                             continue
                         if button.data:
                             data = button.data.decode()
+                            bot_usernames.append(text)
                             bot_ids.append(data)
                             print(f"🔘 Found bot callback ID: {data} (button text: '{text}')")
             print(f"🗃️ Aggregated IDs so far: {bot_ids}")
