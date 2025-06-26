@@ -29,12 +29,9 @@ async def main():
 
             # Check for pagination buttons
             if messages[0].reply_markup and messages[0].reply_markup.rows:
-    if messages[0].reply_markup and messages[0].reply_markup.rows:
-    pagination_buttons = any("Next" in button.text for button in messages[0].reply_markup.rows[0].buttons)
-else:
-    pagination_buttons = False
-else:
-    pagination_buttons = False
+                pagination_buttons = any("Next" in button.text for button in messages[0].reply_markup.rows[0].buttons)
+            else:
+                pagination_buttons = False
             if pagination_buttons:
                 # Click the next button
                 await client.send_message("BotFather", "Next")
@@ -43,8 +40,8 @@ else:
             pagination_buttons = False
 
     # Save the collected bot usernames to a YAML file
-    os.makedirs("bootstrap/data", exist_ok=True)
-    with open("bootstrap/data/botfather_bots.yaml", "w") as f:
+    os.makedirs("data", exist_ok=True)
+    with open("data/botfather_bots.yaml", "w") as f:
         yaml.safe_dump(bot_usernames, f)
 
 if __name__ == "__main__":
