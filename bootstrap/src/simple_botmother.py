@@ -5,13 +5,14 @@ Creates and manages simple echo bots without any LLM involvement.
 All responses are hardcoded for speed and reliability.
 """
 
-import asyncio
-import logging
 import os
-from typing import Dict, Any, List
+import logging
+from typing import Dict, Any
 
+import asyncio
 from dotenv import load_dotenv
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+
+from telegram_bot_base import AbstractTelegramBot, telegram_bot_command
 
 from simple_echo_bot import SimpleEchoBot
 from unlimited_bot_creator import UnlimitedBotCreator
@@ -21,60 +22,23 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-
-class SimpleBotMother:
+class SimpleBotMother(AbstractTelegramBot):
     """Non-intelligent bot factory that creates and manages echo bots."""
 
-    def __init__(self):
-        self.bot_token = os.getenv("BOT_MOTHER_TOKEN")
-        if not self.bot_token:
-            raise ValueError("BOT_MOTHER_TOKEN must be set in environment")
+    def __init__(self, token: str):
+        # Initialize base Telegram bot
+        super().__init__(token)
 
         # Initialize unlimited bot creator for managing echo bots
         self.bot_creator = UnlimitedBotCreator()
-
-        # Initialize Telegram application
-        self.app = Application.builder().token(self.bot_token).build()
-        self._setup_handlers()
 
         # Track user sessions (simple in-memory storage)
         self.user_sessions: Dict[str, Dict[str, Any]] = {}
 
         logger.info("SimpleBotMother initialized (no AI)")
 
-    async def set_bot_commands(self):
-        """Set bot commands with Telegram API using setMyCommands."""
-        commands = [
-            ("start", "Start SimpleBotMother"),
-            ("help", "Show help information"),
-            ("create_bot", "Create a new echo bot"),
-            ("list_bots", "List your created bots"),
-            ("start_bot", "Start a specific bot"),
-            ("stop_bot", "Stop a specific bot"),
-            ("bot_status", "Check the status of a bot"),
-        ]
-        tg_commands = [dict(command=cmd, description=desc) for cmd, desc in commands]
-        try:
-            await self.app.bot.set_my_commands(tg_commands)
-            logger.info("Telegram bot commands set successfully")
-        except Exception as e:
-            logger.error(f"Failed to set bot commands: {e}")
-
-    def _setup_handlers(self):
-        """Set up Telegram command and message handlers."""
-        # Command handlers
-        self.app.add_handler(CommandHandler("start", self.start_command))
-        self.app.add_handler(CommandHandler("help", self.help_command))
-        self.app.add_handler(CommandHandler("create_bot", self.create_bot_command))
-        self.app.add_handler(CommandHandler("list_bots", self.list_bots_command))
-        self.app.add_handler(CommandHandler("start_bot", self.start_bot_command))
-        self.app.add_handler(CommandHandler("stop_bot", self.stop_bot_command))
-        self.app.add_handler(CommandHandler("bot_status", self.bot_status_command))
-
-        # Message handler for regular text (simple responses)
-        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-
-    async def start_command(self, update, context):
+    @telegram_bot_command("Start SimpleBotMother")
+    async def start(self, update, context):
         """Handle /start command with hardcoded response."""
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or "User"
@@ -90,7 +54,7 @@ Hello @{username}! I create simple echo bots for you.
 /list_bots - Show your created bots
 /start_bot <name> - Start a specific bot
 /stop_bot <name> - Stop a specific bot
-/bot_status <name> - Check bot status
+/bot_status <name> - Check the status of a bot
 /help - Show this help message
 
 **What I do:**
@@ -104,39 +68,8 @@ Ready to create your first echo bot? Use `/create_bot MyBot`"""
 
         await update.message.reply_text(response, parse_mode='Markdown')
 
-    async def help_command(self, update, context):
-        """Handle /help command with hardcoded response."""
-        user_id = str(update.effective_user.id)
-        logger.info(f"Help command from user {user_id}")
-
-        response = """🆘 **SimpleBotMother Help**
-
-**Bot Creation:**
-• `/create_bot <name>` - Create new echo bot
-• Example: `/create_bot TestBot`
-
-**Bot Management:**
-• `/list_bots` - View all your bots
-• `/start_bot <name>` - Start a bot
-• `/stop_bot <name>` - Stop a bot
-• `/bot_status <name>` - Check bot status
-
-**About Echo Bots:**
-• They repeat back any message sent to them
-• Perfect for testing and simple interactions
-• No AI involved - just pure echo functionality
-• Each bot runs independently
-
-**Current Capacity:**
-• Can create unlimited bots automatically
-• Creates new bot tokens via @BotFather as needed
-• All bots run concurrently
-
-Need help? Just ask! (I give simple hardcoded responses)"""
-
-        await update.message.reply_text(response, parse_mode='Markdown')
-
-    async def create_bot_command(self, update, context):
+    @telegram_bot_command("Create a new echo bot")
+    async def create_bot(self, update, context):
         """Handle /create_bot command."""
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or "User"
@@ -203,7 +136,8 @@ It will echo back any message sent to it.
                 parse_mode='Markdown'
             )
 
-    async def list_bots_command(self, update, context):
+    @telegram_bot_command("List your created bots")
+    async def list_bots(self, update, context):
         """Handle /list_bots command."""
         user_id = str(update.effective_user.id)
         logger.info(f"List bots command from user {user_id}")
@@ -245,7 +179,8 @@ Example: `/create_bot MyFirstBot`"""
                 parse_mode='Markdown'
             )
 
-    async def start_bot_command(self, update, context):
+    @telegram_bot_command("Start a specific bot")
+    async def start_bot(self, update, context):
         """Handle /start_bot command."""
         user_id = str(update.effective_user.id)
 
@@ -294,7 +229,8 @@ Users can start chatting with it immediately."""
                 parse_mode='Markdown'
             )
 
-    async def stop_bot_command(self, update, context):
+    @telegram_bot_command("Stop a specific bot")
+    async def stop_bot(self, update, context):
         """Handle /stop_bot command."""
         user_id = str(update.effective_user.id)
 
@@ -343,7 +279,8 @@ You can start it again with `/start_bot {bot_name}`"""
                 parse_mode='Markdown'
             )
 
-    async def bot_status_command(self, update, context):
+    @telegram_bot_command("Check the status of a bot")
+    async def bot_status(self, update, context):
         """Handle /bot_status command."""
         user_id = str(update.effective_user.id)
 
@@ -396,7 +333,7 @@ The bot '{bot_name}' was not found in your bot list.
                 parse_mode='Markdown'
             )
 
-    async def handle_message(self, update, context):
+    async def _on_message(self, update, context):
         """Handle regular text messages with simple hardcoded responses."""
         user_id = str(update.effective_user.id)
         message_text = update.message.text
@@ -428,45 +365,3 @@ I only respond to specific commands. Here are the main ones:
 Type a command to get started!"""
 
         await update.message.reply_text(response, parse_mode='Markdown')
-
-    async def run(self):
-        """Run SimpleBotMother."""
-        logger.info("Starting SimpleBotMother...")
-
-        # Initialize bot creator
-        await self.bot_creator.initialize()
-
-        # Start the Telegram application
-        await self.app.initialize()
-        await self.app.start()
-
-        # Set Telegram commands on startup
-        await self.set_bot_commands()
-
-        await self.app.updater.start_polling()
-
-        logger.info("✅ SimpleBotMother is running and ready!")
-
-        # Keep running
-        try:
-            await asyncio.Event().wait()
-        except KeyboardInterrupt:
-            logger.info("Shutting down SimpleBotMother...")
-        finally:
-            # Cleanup
-            await self.bot_creator.shutdown()
-            await self.app.updater.stop()
-            await self.app.stop()
-            await self.app.shutdown()
-
-
-async def main():
-    """Main entry point for SimpleBotMother."""
-    logger.info("Starting SimpleBotMother system")
-
-    bot_mother = SimpleBotMother()
-    await bot_mother.run()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
