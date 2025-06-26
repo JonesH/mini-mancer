@@ -14,7 +14,7 @@ async def main():
 
     # ask BotFather for your bot list
     print("🔍 Sending /tokens to BotFather...")
-    await client.send_message("BotFather", "/tokens")
+    await client.send_message("BotFather", "/token")
     await asyncio.sleep(3)   # give BotFather time to reply
     print("⏳ Received reply from BotFather, processing list...")
 
