@@ -24,4 +24,4 @@ RUN uv sync
 EXPOSE 14159
 
 # Default to dual-interface deployment (both Telegram and FastAPI)
-CMD ["uv", "run", "python", "web_main.py"]
+CMD ["uv", "run", "python", "main.py"]
