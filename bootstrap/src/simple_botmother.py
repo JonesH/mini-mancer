@@ -1,22 +1,30 @@
 """
-SimpleBotMother - Non-intelligent bot factory with hardcoded responses
-
-Creates and manages simple echo bots without any LLM involvement.
-All responses are hardcoded for speed and reliability.
+SimpleBotMother - Non-intelligent bot factory with templated responses
 """
 
 import os
 import logging
 from typing import Dict, Any
-
 import asyncio
 from dotenv import load_dotenv
 
 from telegram_bot_base import AbstractTelegramBot, telegram_bot_command
-
 from simple_echo_bot import SimpleEchoBot
 from unlimited_bot_creator import UnlimitedBotCreator
 from markdown_utils import escape_username, format_bot_link
+
+from .simple_botmother_templates import (
+    START_TEMPLATE,
+    CREATE_SUCCESS_TEMPLATE,
+    CREATE_ERROR_TEMPLATE,
+    STARTBOT_SUCCESS_TEMPLATE,
+    STARTBOT_ERROR_TEMPLATE,
+    STOPBOT_SUCCESS_TEMPLATE,
+    STOPBOT_ERROR_TEMPLATE,
+    STATUS_FOUND_TEMPLATE,
+    STATUS_NOTFOUND_TEMPLATE,
+)
+from .simple_botmother_models import BotCreatorResult
 
 load_dotenv()
 
@@ -26,46 +34,18 @@ class SimpleBotMother(AbstractTelegramBot):
     """Non-intelligent bot factory that creates and manages echo bots."""
 
     def __init__(self, token: str):
-        # Initialize base Telegram bot
         super().__init__(token)
-
-        # Initialize unlimited bot creator for managing echo bots
         self.bot_creator = UnlimitedBotCreator()
-
-        # Track user sessions (simple in-memory storage)
         self.user_sessions: Dict[str, Dict[str, Any]] = {}
-
         logger.info("SimpleBotMother initialized (no AI)")
 
     @telegram_bot_command("Start SimpleBotMother")
     async def start(self, update, context):
-        """Handle /start command with hardcoded response."""
+        """Handle /start command with templated response."""
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or "User"
-
         logger.info(f"Start command from user {user_id} (@{username})")
-
-        response = f"""🤖 **SimpleBotMother - Bot Factory**
-
-Hello @{username}! I create simple echo bots for you.
-
-**Available Commands:**
-/create_bot <name> - Create a new echo bot
-/list_bots - Show your created bots
-/start_bot <name> - Start a specific bot
-/stop_bot <name> - Stop a specific bot
-/bot_status <name> - Check the status of a bot
-/help - Show this help message
-
-**What I do:**
-✅ Create unlimited echo bots (no AI)
-✅ Auto-generate new bot tokens via @BotFather
-✅ Manage multiple bots concurrently
-✅ Start/stop bots on demand
-✅ Track all your created bots
-
-Ready to create your first echo bot? Use `/create_bot MyBot`"""
-
+        response = START_TEMPLATE.format(username=username)
         await update.message.reply_text(response, parse_mode='Markdown')
 
     @telegram_bot_command("Create a new echo bot")
@@ -74,7 +54,6 @@ Ready to create your first echo bot? Use `/create_bot MyBot`"""
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or "User"
 
-        # Parse bot name from command
         if not context.args:
             await update.message.reply_text(
                 "❌ Please provide a bot name!\n\n"
@@ -85,45 +64,28 @@ Ready to create your first echo bot? Use `/create_bot MyBot`"""
             return
 
         bot_name = " ".join(context.args)
-
         logger.info(f"Create bot command from user {user_id}: {bot_name}")
 
-        # Send immediate response
         await update.message.reply_text(
-            f"🔄 Creating echo bot '{bot_name}'...\n"
-            f"This may take a few seconds.",
+            f"🔄 Creating echo bot '{bot_name}'...\nThis may take a few seconds.",
             parse_mode='Markdown'
         )
 
         try:
-            # Create the echo bot
-            result = await self.bot_creator.create_echo_bot(bot_name, user_id)
+            raw = await self.bot_creator.create_echo_bot(bot_name, user_id)
+            result = BotCreatorResult.parse_obj(raw)
 
-            if result["success"]:
-                escaped_username = escape_username(result['username'])
-                response =f"""✅ **Echo Bot Created Successfully!**
-
-**Bot Name:** {bot_name}
-**Username:** {escaped_username}
-**Status:** {result['status']}
-**Link:** {result['telegram_link']}
-
-Your echo bot is ready! Users can start chatting with it right away.
-It will echo back any message sent to it.
-
-**Next Steps:**
-• Test it: {result['telegram_link']}
-• Start it: `/start_bot {bot_name}`
-• Check status: `/bot_status {bot_name}`"""
+            if result.success:
+                response = CREATE_SUCCESS_TEMPLATE.format(
+                    bot_name=bot_name,
+                    escaped_username=escape_username(result.username or ""),
+                    status=result.status or "",
+                    telegram_link=result.telegram_link or ""
+                )
             else:
-                response = f"""❌ **Bot Creation Failed**
-
-**Error:** {result['error']}
-
-**Troubleshooting:**
-• Make sure bot tokens are available
-• Check if the bot name is unique
-• Try again in a few moments"""
+                response = CREATE_ERROR_TEMPLATE.format(
+                    error=result.error or "Unknown error"
+                )
 
             await update.message.reply_text(response, parse_mode='Markdown')
 
@@ -156,22 +118,21 @@ Use `/create_bot <name>` to create your first echo bot!
 Example: `/create_bot MyFirstBot`"""
             else:
                 response = f"📋 **Your Bots ({len(bots)} total)**\n\n"
-
                 for i, bot in enumerate(bots, 1):
                     status_emoji = "🟢" if bot['status'] == 'running' else "⚪"
                     escaped_username = escape_username(bot['username'])
-                    response += f"{i}. {status_emoji} **{bot['name']}**\n"
-                    response += f"   • Username: {escaped_username}\n"
-                    response += f"   • Status: {bot['status']}\n"
-                    response += f"   • Link: {bot['telegram_link']}\n\n"
-
+                    response += (
+                        f"{i}. {status_emoji} **{bot['name']}**\n"
+                        f"   • Username: {escaped_username}\n"
+                        f"   • Status: {bot['status']}\n"
+                        f"   • Link: {bot['telegram_link']}\n\n"
+                    )
                 response += "**Commands:**\n"
                 response += "• `/start_bot <name>` - Start bot\n"
                 response += "• `/stop_bot <name>` - Stop bot\n"
                 response += "• `/bot_status <name>` - Check status"
 
             await update.message.reply_text(response, parse_mode='Markdown')
-
         except Exception as e:
             logger.error(f"List bots error: {e}")
             await update.message.reply_text(
@@ -197,31 +158,21 @@ Example: `/create_bot MyFirstBot`"""
         logger.info(f"Start bot command from user {user_id}: {bot_name}")
 
         try:
-            result = await self.bot_creator.start_bot(bot_name, user_id)
+            raw = await self.bot_creator.start_bot(bot_name, user_id)
+            result = BotCreatorResult.parse_obj(raw)
 
-            if result["success"]:
-                escaped_username = escape_username(result['username'])
-                response = f"""✅ **Bot Started Successfully!**
-
-**Bot:** {bot_name}
-**Username:** {escaped_username}
-**Status:** Running
-
-Your bot is now live and ready to receive messages!
-Users can start chatting with it immediately."""
+            if result.success:
+                response = STARTBOT_SUCCESS_TEMPLATE.format(
+                    bot_name=bot_name,
+                    escaped_username=escape_username(result.username or "")
+                )
             else:
-                response = f"""❌ **Failed to Start Bot**
-
-**Bot:** {bot_name}
-**Error:** {result['error']}
-
-**Troubleshooting:**
-• Check if the bot exists: `/list_bots`
-• Make sure you own this bot
-• Try stopping and starting again"""
+                response = STARTBOT_ERROR_TEMPLATE.format(
+                    bot_name=bot_name,
+                    error=result.error or "Unknown error"
+                )
 
             await update.message.reply_text(response, parse_mode='Markdown')
-
         except Exception as e:
             logger.error(f"Start bot error: {e}")
             await update.message.reply_text(
@@ -247,31 +198,21 @@ Users can start chatting with it immediately."""
         logger.info(f"Stop bot command from user {user_id}: {bot_name}")
 
         try:
-            result = await self.bot_creator.stop_bot(bot_name, user_id)
+            raw = await self.bot_creator.stop_bot(bot_name, user_id)
+            result = BotCreatorResult.parse_obj(raw)
 
-            if result["success"]:
-                escaped_username = escape_username(result['username'])
-                response = f"""⏹️ **Bot Stopped Successfully!**
-
-**Bot:** {bot_name}
-**Username:** {escaped_username}
-**Status:** Stopped
-
-The bot is no longer responding to messages.
-You can start it again with `/start_bot {bot_name}`"""
+            if result.success:
+                response = STOPBOT_SUCCESS_TEMPLATE.format(
+                    bot_name=bot_name,
+                    escaped_username=escape_username(result.username or "")
+                )
             else:
-                response = f"""❌ **Failed to Stop Bot**
-
-**Bot:** {bot_name}
-**Error:** {result['error']}
-
-**Troubleshooting:**
-• Check if the bot exists: `/list_bots`
-• Make sure the bot is currently running
-• Verify you own this bot"""
+                response = STOPBOT_ERROR_TEMPLATE.format(
+                    bot_name=bot_name,
+                    error=result.error or "Unknown error"
+                )
 
             await update.message.reply_text(response, parse_mode='Markdown')
-
         except Exception as e:
             logger.error(f"Stop bot error: {e}")
             await update.message.reply_text(
@@ -297,35 +238,23 @@ You can start it again with `/start_bot {bot_name}`"""
         logger.info(f"Bot status command from user {user_id}: {bot_name}")
 
         try:
-            status = await self.bot_creator.get_bot_status(bot_name, user_id)
+            raw = await self.bot_creator.get_bot_status(bot_name, user_id)
+            result = BotCreatorResult.parse_obj(raw)
 
-            if status["found"]:
-                status_emoji = "🟢" if status['status'] == 'running' else "⚪"
-                escaped_username = escape_username(status['username'])
-                response = f"""📊 **Bot Status Report**
-
-{status_emoji} **{bot_name}**
-
-**Username:** {escaped_username}
-**Status:** {status['status']}
-**Created:** {status['created']}
-**Link:** {status['telegram_link']}
-
-**Actions:**
-• Start: `/start_bot {bot_name}`
-• Stop: `/stop_bot {bot_name}`"""
+            if raw.get("found"):
+                status_emoji = "🟢" if result.status == 'running' else "⚪"
+                response = STATUS_FOUND_TEMPLATE.format(
+                    status_emoji=status_emoji,
+                    bot_name=bot_name,
+                    escaped_username=escape_username(result.username or ""),
+                    status=result.status or "",
+                    telegram_link=result.telegram_link or "",
+                    created=raw.get("created", "")
+                )
             else:
-                response = f"""❌ **Bot Not Found**
-
-**Bot:** {bot_name}
-
-The bot '{bot_name}' was not found in your bot list.
-
-**Check your bots:** `/list_bots`
-**Create new bot:** `/create_bot <name>`"""
+                response = STATUS_NOTFOUND_TEMPLATE.format(bot_name=bot_name)
 
             await update.message.reply_text(response, parse_mode='Markdown')
-
         except Exception as e:
             logger.error(f"Bot status error: {e}")
             await update.message.reply_text(
@@ -337,10 +266,7 @@ The bot '{bot_name}' was not found in your bot list.
         """Handle regular text messages with simple hardcoded responses."""
         user_id = str(update.effective_user.id)
         message_text = update.message.text
-
         logger.info(f"Message from user {user_id}: {message_text[:50]}...")
-
-        # Simple keyword-based responses (no AI)
         text_lower = message_text.lower()
 
         if any(word in text_lower for word in ['hello', 'hi', 'hey']):
