@@ -17,8 +17,9 @@ async def main():
     await asyncio.sleep(3)   # give BotFather time to reply
     print("⏳ Received reply from BotFather, processing pages...")
 
-    # Initialize a list to store bot usernames
+    # Initialize lists to store bot usernames and callback IDs
     bot_usernames = []
+    bot_ids = []
     pagination_buttons = True
     page = 1
     while pagination_buttons:
@@ -34,6 +35,19 @@ async def main():
                     bot_usernames.append(l)
             print(f"✅ Found {len(bot_usernames)} bot(s) so far: {bot_usernames}")
 
+            # Extract bot IDs from inline buttons
+            if messages[0].reply_markup and messages[0].reply_markup.rows:
+                for row in messages[0].reply_markup.rows:
+                    for button in row.buttons:
+                        text = button.text
+                        if text in ("Next", "Prev", "<<", ">>", "«", "»"):
+                            continue
+                        if button.data:
+                            data = button.data.decode()
+                            bot_ids.append(data)
+                            print(f"🔘 Found bot callback ID: {data} (button text: '{text}')")
+            print(f"🗃️ Aggregated IDs so far: {bot_ids}")
+
             # Check for pagination buttons
             if messages[0].reply_markup and messages[0].reply_markup.rows:
                 pagination_buttons = any("Next" in button.text for button in messages[0].reply_markup.rows[0].buttons)
@@ -48,8 +62,9 @@ async def main():
         else:
             pagination_buttons = False
 
-    # Completed pagination, final list of bots:
+    # Completed pagination, final list of bots and IDs:
     print(f"🎯 Final bot list ({len(bot_usernames)}): {bot_usernames}")
+    print(f"🎯 Final bot callback IDs ({len(bot_ids)}): {bot_ids}")
     # Save the collected bot usernames to a YAML file
     os.makedirs("data", exist_ok=True)
     with open("data/botfather_bots.yaml", "w") as f:
